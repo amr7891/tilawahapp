@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tilawah</title>
+<meta name="theme-color" content="#1E5C4C">
+<meta name="description" content="Read the Madinah Mushaf, listen ayah by ayah, and get live corrections on your recitation.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tilawah">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1290x2796.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1179x2556.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1284x2778.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1170x2532.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1125x2436.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1242x2688.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/launch-828x1792.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/launch-1080x2340.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/launch-750x1334.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/launch-1640x2360.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/launch-2048x2732.png">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+ <div class="screen" id="screen">
+  <header class="topbar" id="topbar">
+    <button class="icon-btn" id="backBtn" hidden aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="topbar-title">
+      <h1 id="viewTitle">Quran</h1>
+      <p id="viewSub"></p>
+    </div>
+    <button class="btn small" id="toMushafBtn" hidden>Mushaf</button>
+    <button class="icon-btn" id="settingsBtn" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+
+  <main id="main">
+    <!-- Surah list -->
+    <section class="view" id="view-list">
+      <div class="mode-switch" id="readMode" role="radiogroup" aria-label="Open surahs in">
+        <button type="button" class="mode" data-read="mushaf" role="radio">Mushaf</button>
+        <button type="button" class="mode" data-read="text" role="radio">Text and translation</button>
+      </div>
+      <div id="installCard"></div>
+      <button type="button" class="find-btn" id="findBtn">
+        <span class="find-mic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+        <span><b>Recite to find an ayah</b><small>Start reciting anywhere and the mushaf follows you</small></span>
+      </button>
+      <div id="continueCard"></div>
+      <div class="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="surahSearch" type="search" placeholder="Search surah by name or number" autocomplete="off">
+      </div>
+      <ol class="surah-list" id="surahList"><li class="empty">Loading surahs…</li></ol>
+    </section>
+
+    <!-- Surah text view -->
+    <section class="view" id="view-surah" hidden>
+      <div id="surahHead"></div>
+      <div class="ayahs" id="ayahs"></div>
+    </section>
+
+    <!-- Library -->
+    <section class="view" id="view-library" hidden>
+      <div id="library"></div>
+    </section>
+
+    <!-- Qibla -->
+    <section class="view" id="view-qibla" hidden>
+      <div class="qibla">
+        <div class="dial-wrap" id="dialWrap">
+          <div class="dial-pointer" aria-hidden="true"></div>
+          <svg class="dial" id="dial" viewBox="0 0 300 300" aria-hidden="true"></svg>
+        </div>
+        <p class="qibla-state" id="qiblaState">Find your location to see the Qibla direction.</p>
+        <dl class="qibla-facts">
+          <div><dt>Qibla bearing</dt><dd id="qBearing">—</dd></div>
+          <div><dt>Distance to Makkah</dt><dd id="qDistance">—</dd></div>
+          <div><dt>Your location</dt><dd id="qLocation">—</dd></div>
+        </dl>
+        <div class="qibla-actions">
+          <button class="btn primary" id="locateBtn">Use my location</button>
+          <button class="btn" id="compassBtn">Start compass</button>
+        </div>
+        <details class="manual">
+          <summary>Enter coordinates instead</summary>
+          <form id="manualForm" class="manual-form">
+            <label>Latitude <input id="manLat" type="number" step="any" inputmode="decimal" placeholder="40.7128" required></label>
+            <label>Longitude <input id="manLon" type="number" step="any" inputmode="decimal" placeholder="-74.0060" required></label>
+            <button class="btn" type="submit">Set location</button>
+          </form>
+        </details>
+        <p class="note">Hold your phone flat and away from metal or magnets. If the direction drifts, move the phone in a figure-eight to recalibrate the compass.</p>
+      </div>
+    </section>
+  </main>
+ </div>
+
+  <!-- Mushaf reader (full screen) -->
+  <section class="reader" id="reader" hidden aria-label="Mushaf">
+    <div class="page-stage" id="pageStage">
+      <div class="page-status" id="pageStatus" hidden></div>
+    </div>
+    <div class="reader-bar reader-top">
+      <button class="icon-btn" id="readerBack" aria-label="Back to surah list"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="reader-title"><b id="readerTitle">Mushaf</b><span id="readerSub"></span></div>
+      <button class="icon-btn" id="readerMark" aria-label="Bookmark this page"><svg viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4z"/></svg></button>
+      <button class="icon-btn" id="readerGoto" aria-label="Go to surah, juz, page or bookmark"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+      <button class="icon-btn" id="readerSettings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+    <div class="ayah-bar" id="ayahBar" hidden>
+      <div class="ab-head">
+        <div class="ab-ref"><b id="ayahBarRef"></b><span id="ayahBarName"></span></div>
+        <button class="icon-btn" id="ayahClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="ab-actions">
+        <button class="ab-act" id="ayahPlay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5l11 6.5-11 6.5z" class="fill"/></svg><span>Play</span></button>
+        <button class="ab-act" id="ayahRecite"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>Recite</span></button>
+        <button class="ab-act" id="ayahText"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h10"/></svg><span>Translation</span></button>
+        <button class="ab-act" id="ayahTafsir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6z"/></svg><span>Tafsir</span></button>
+        <button class="ab-act" id="ayahMark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z"/></svg><span>Bookmark</span></button>
+      </div>
+      <div class="ab-hl">
+        <span>Highlight</span>
+        <div class="hl-swatches" role="group" aria-label="Highlight ayah">
+          <button type="button" class="sw" data-hl="yellow" aria-label="Highlight yellow"></button>
+          <button type="button" class="sw" data-hl="green" aria-label="Highlight green"></button>
+          <button type="button" class="sw" data-hl="blue" aria-label="Highlight blue"></button>
+          <button type="button" class="sw" data-hl="pink" aria-label="Highlight pink"></button>
+          <button type="button" class="sw none" data-hl="" aria-label="Remove highlight"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="trans-card" id="transCard" hidden>
+      <div class="tc-head">
+        <div class="mode-switch tc-tabs" role="tablist">
+          <button type="button" class="mode" data-tc="translation" role="tab">Translation</button>
+          <button type="button" class="mode" data-tc="tafsir" role="tab">Tafsir Ibn Kathir</button>
+        </div>
+        <button class="icon-btn" id="transClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <b id="tcRef"></b>
+      <div id="tcText"></div>
+      <button class="btn small" id="transOpen">Open surah in text view</button>
+    </div>
+    <div class="reader-bar reader-bottom">
+      <button class="icon-btn play" id="mPlay" aria-label="Play recitation"><svg viewBox="0 0 24 24" class="play-icon"><path d="M7 5l12 7-12 7z"/></svg></button>
+      <button class="reciter-chip" id="mReciter" aria-label="Choose reciter"><svg viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"/></svg><span id="mReciterName"></span></button>
+      <input id="readerSlider" type="range" dir="rtl" min="1" max="604" value="1" aria-label="Page">
+      <button class="mic small" id="mMic" aria-label="Start reciting">
+        <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- Book reader (PDF) -->
+  <section class="reader pdf-reader" id="pdfReader" hidden aria-label="Book reader">
+    <div class="pdf-scroll" id="pdfScroll"><div class="pdf-pages" id="pdfPages"></div></div>
+    <div class="page-status" id="pdfStatus" hidden></div>
+    <div class="reader-bar reader-top">
+      <button class="icon-btn" id="pdfBack" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="reader-title"><b id="pdfTitle">Book</b><span id="pdfSub"></span></div>
+      <button class="icon-btn" id="pdfMark" aria-label="Bookmark this page"><svg viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4z"/></svg></button>
+      <button class="icon-btn" id="pdfList" aria-label="Bookmarks and highlights"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+    </div>
+    <div class="pdf-hlbar" id="pdfHlBar" hidden>
+      <span>Highlight</span>
+      <div class="hl-swatches">
+        <button type="button" class="sw" data-phl="yellow" aria-label="Highlight yellow"></button>
+        <button type="button" class="sw" data-phl="green" aria-label="Highlight green"></button>
+        <button type="button" class="sw" data-phl="blue" aria-label="Highlight blue"></button>
+        <button type="button" class="sw" data-phl="pink" aria-label="Highlight pink"></button>
+      </div>
+    </div>
+    <div class="reader-bar reader-bottom pdf-bottom">
+      <button class="icon-btn" id="pdfZoomOut" aria-label="Zoom out"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M8 11h6"/></svg></button>
+      <button class="icon-btn" id="pdfZoomIn" aria-label="Zoom in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M8 11h6M11 8v6"/></svg></button>
+      <form class="pdf-goto" id="pdfGoto"><label for="pdfPageNum">Page</label><input id="pdfPageNum" type="number" min="1" inputmode="numeric"><span id="pdfPageCount"></span></form>
+    </div>
+  </section>
+
+  <!-- Recitation dock (text view only) -->
+  <div class="dock" id="dock" hidden>
+    <div class="dock-row">
+      <div class="player">
+        <button class="icon-btn" id="prevBtn" aria-label="Previous ayah"><svg viewBox="0 0 24 24"><path d="M18 6l-8 6 8 6zM6 6v12"/></svg></button>
+        <button class="icon-btn play" id="playBtn" aria-label="Play recitation"><svg viewBox="0 0 24 24" class="play-icon"><path d="M7 5l12 7-12 7z"/></svg></button>
+        <button class="icon-btn" id="nextBtn" aria-label="Next ayah"><svg viewBox="0 0 24 24"><path d="M6 6l8 6-8 6zM18 6v12"/></svg></button>
+        <button class="player-meta" id="dockReciter" aria-label="Choose reciter">
+          <span id="reciterName"></span>
+          <span id="playerAyah"></span>
+        </button>
+      </div>
+      <button class="mic" id="micBtn" aria-label="Start reciting">
+        <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="heard" id="heard" hidden>
+    <span class="heard-dot"></span><span id="heardText">Listening…</span>
+  </div>
+
+  <nav class="tabs" aria-label="Sections">
+    <a href="#quran" class="tab" data-tab="quran"><svg viewBox="0 0 24 24"><path d="M4 5c3-1 5.5-1 8 1 2.5-2 5-2 8-1v14c-3-1-5.5-1-8 1-2.5-2-5-2-8-1z"/><path d="M12 6v14"/></svg><span>Quran</span></a>
+    <a href="#library" class="tab" data-tab="library"><svg viewBox="0 0 24 24"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1 -3.6 14.6 -3.8-1z"/></svg><span>Library</span></a>
+    <a href="#qibla" class="tab" data-tab="qibla"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg><span>Qibla</span></a>
+  </nav>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</div>
+<p class="frame-caption">Tilawah · mobile preview</p>
+
+<!-- Settings -->
+<dialog class="sheet" id="settingsSheet">
+  <form method="dialog" class="sheet-body">
+    <div class="sheet-head"><h2>Settings</h2><button class="icon-btn" value="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <h3 class="set-group">Reading</h3>
+    <label class="field"><span>Text view size</span><input id="setFont" type="range" min="22" max="48" step="2"></label>
+    <label class="toggle"><input id="setTranslation" type="checkbox"><span><b>Show English translation</b><small>Sahih International, under each ayah in text view</small></span></label>
+    <label class="toggle"><input id="setTafsir" type="checkbox"><span><b>Show tafsir</b><small>Tafsir Ibn Kathir (English, abridged), under each passage in text view</small></span></label>
+    <h3 class="set-group">Listening</h3>
+    <label class="field"><span>Reciter</span><select id="setReciter"></select></label>
+    <label class="field"><span>Repeat each ayah</span>
+      <select id="setRepeat"><option value="1">Once</option><option value="2">2 times</option><option value="3">3 times</option><option value="5">5 times</option><option value="10">10 times</option></select>
+    </label>
+    <label class="toggle"><input id="setAutoNext" type="checkbox"><span><b>Continue to next ayah</b><small>Keep playing after each ayah ends</small></span></label>
+    <label class="toggle"><input id="setListenRepeat" type="checkbox"><span><b>Listen and repeat</b><small>The reciter plays an ayah, then the mic opens for you to repeat it</small></span></label>
+    <h3 class="set-group">Reciting</h3>
+    <label class="field"><span>Recitation checking</span>
+      <select id="setEngine"><option value="quran">Quran speech model (on this phone)</option><option value="browser">Phone’s built-in recognizer (online)</option></select>
+      <small class="field-note">The Quran model was trained on recitation, so it follows tajweed and elongation better. It downloads once (about 100 MB) the first time you recite.</small>
+    </label>
+    <label class="toggle"><input id="setHide" type="checkbox"><span><b>Memorization mode</b><small>Hide the words while you recite; each word appears once you say it</small></span></label>
+    <label class="toggle"><input id="setPopups" type="checkbox"><span><b>Mistake pop-ups</b><small>Show the correct word when you make a mistake while reciting (otherwise the word is only coloured and the phone vibrates)</small></span></label>
+    <button type="button" class="btn install-row" id="installBtn">Install Tilawah on this device</button>
+  </form>
+</dialog>
+
+<!-- Install instructions -->
+<dialog class="sheet" id="installSheet">
+  <form method="dialog" class="sheet-body">
+    <div class="sheet-head"><h2>Install Tilawah</h2><button class="icon-btn" value="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="installBody"></div>
+  </form>
+</dialog>
+
+<!-- Reciter picker -->
+<dialog class="sheet" id="reciterSheet">
+  <form method="dialog" class="sheet-body">
+    <div class="sheet-head"><h2>Reciter</h2><button class="icon-btn" value="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="speed-row" id="speedRow" role="radiogroup" aria-label="Playback speed">
+      <span>Speed</span>
+      <div class="mode-switch"><button type="button" class="mode" data-speed="0.75">0.75×</button><button type="button" class="mode" data-speed="1">1×</button><button type="button" class="mode" data-speed="1.25">1.25×</button><button type="button" class="mode" data-speed="1.5">1.5×</button><button type="button" class="mode" data-speed="2">2×</button></div>
+    </div>
+    <ul class="reciter-list" id="reciterList"></ul>
+  </form>
+</dialog>
+
+<!-- Book bookmarks and highlights -->
+<dialog class="sheet" id="pdfMarksSheet">
+  <form method="dialog" class="sheet-body">
+    <div class="sheet-head"><h2>Bookmarks and highlights</h2><button class="icon-btn" value="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="pdfMarksBody"></div>
+  </form>
+</dialog>
+
+<!-- Mushaf go-to -->
+<dialog class="sheet" id="gotoSheet">
+  <form method="dialog" class="sheet-body">
+    <div class="sheet-head"><h2>Go to</h2><button class="icon-btn" value="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="gotoBody"></div>
+  </form>
+</dialog>
+
+<!-- Session summary -->
+<dialog class="sheet" id="summarySheet">
+  <form method="dialog" class="sheet-body">
+    <div class="sheet-head"><h2>Recitation check</h2><button class="icon-btn" value="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="summaryBody"></div>
+  </form>
+</dialog>
+
+<script src="matcher.js"></script>
+<script src="speech.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
