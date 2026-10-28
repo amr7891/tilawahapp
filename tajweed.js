@@ -16,9 +16,20 @@
 
   const HARAKAT = 'َُِ۪';
   const MADD = 'اۦۥـ';
-  const MADD_NAMES = { N: 'natural madd', F: 'madd munfasil', T: 'madd muttasil', P: 'madd muttasil', A: 'madd ʿarid', L: 'madd lazim', E: 'madd leen' };
-  // Lengths (in counts) accepted for each madd in Hafs.
-  const MADD_OK = { N: [2], F: [2, 4, 5], T: [4, 5, 6], P: [4, 5, 6], A: [2, 4, 5, 6], L: [5, 6], E: [2, 4, 5, 6] };
+  // Madd names and lengths (in counts) for Hafs ʿan ʿAsim by way of ash-Shatibiyyah, as taught in
+  // Tajweed Rules of the Qur'an (K. Czerepinski), ch. 7: natural 2; separated (munfasil) 4 or 5,
+  // two not allowed; attached (muttasil) 4 or 5, and 6 too when stopping on its hamza; ʿarid
+  // lis-sukun and leen when stopping 2, 4 or 6; compulsory (lazim) 6.
+  const MADD_NAMES = { N: 'Natural madd (ṭabīʿī)', F: 'Separated madd (munfaṣil)', T: 'Attached madd (muttaṣil)', P: 'Attached madd (muttaṣil) when stopping', A: 'Madd ʿāriḍ lis-sukūn (stopping)', L: 'Compulsory madd (lāzim)', E: 'Madd līn (stopping)' };
+  const MADD_OK = { N: [2], F: [4, 5], T: [4, 5], P: [4, 5, 6], A: [2, 4, 6], L: [6], E: [2, 4, 6] };
+  const THROAT = 'ءهعحغخ', SUN = 'تثدذرزسشصضطظلن', QALQALA = 'قطبجد';
+  const counts = ok => ok.length === 1 ? `${ok[0]} counts` : `${ok.slice(0, -1).join(', ')} or ${ok[ok.length - 1]} counts`;
+  const lname = l => LETTER_NAMES[l] || l;
+  // Letters a reader can mix up: the same or a neighbouring articulation point (makhraj,
+  // ch. 2) or a heavy/light pair. A swap between letters far apart (fa for kaf) is almost
+  // always the model mishearing, not the reader.
+  const NEAR = ['ءهعحغخ', 'غخقك', 'قكج', 'جشي', 'ضلد', 'ضظ', 'نرل', 'طدت', 'صسز', 'سثش', 'ظذثز', 'فثب', 'بمو', 'هة'];
+  const near = (a, b) => a === b || NEAR.some(g => g.includes(a) && g.includes(b));
   const LETTER_NAMES = { 'ء': 'hamza', 'ب': 'ba', 'ت': 'ta', 'ث': 'tha', 'ج': 'jim', 'ح': 'ḥa', 'خ': 'kha', 'د': 'dal', 'ذ': 'dhal', 'ر': 'ra', 'ز': 'zay', 'س': 'sin', 'ش': 'shin', 'ص': 'ṣad', 'ض': 'ḍad', 'ط': 'ṭa', 'ظ': 'ẓa', 'ع': 'ʿayn', 'غ': 'ghayn', 'ف': 'fa', 'ق': 'qaf', 'ك': 'kaf', 'ل': 'lam', 'م': 'mim', 'ن': 'nun', 'ه': 'ha', 'و': 'waw', 'ي': 'ya' };
   const HARAKA_NAMES = { 'َ': 'fatḥa', 'ُ': 'ḍamma', 'ِ': 'kasra', '۪': 'imala', '': 'sukun' };
 
@@ -169,9 +180,25 @@
     return own ? own[1] : 1;
   }
 
+  // What the book calls the rule behind a ghunnah difference (chapters 3–5).
+  function ghunnahMsg(xu, next) {
+    const nun = xu.letter === 'ن', L = lname(next);
+    if (xu.ghunnah) {
+      if (xu.base.includes('ں')) return `Ikhfāʾ: hide the nun with ghunnah before the ${L}, tongue near but not touching`;
+      if (xu.base.includes('۾')) return next === 'ب' ? 'Iqlāb / ikhfāʾ shafawī: before the ba, hide the mim with ghunnah, lips lightly closed' : 'Hide the mim with ghunnah';
+      if (xu.shadda) return `Ghunnah: hold the doubled ${lname(xu.letter)} for 2 counts`;
+      return 'Ghunnah: hold the nasal sound for 2 counts';
+    }
+    if (nun && THROAT.includes(next)) return `Iẓhār: say the nun clearly, with no ghunnah, before the throat letter ${L}`;
+    if (xu.letter === 'م' && (next === 'و' || next === 'ف')) return `Iẓhār shafawī: close the lips fully on the mim before the ${L}; don't hide it`;
+    return `No ghunnah on the ${lname(xu.letter)} here`;
+  }
+
   // Explain the differences in one word.
   function explain(W, form, H, y0, y1, opts) {
     const X = form.units, errs = [];
+    // The letter that follows unit i (in this word, or the next word's first sound).
+    const nextLetter = i => { const u = i + 1 < X.length ? units[X[i + 1]] : units[opts.nextUnit]; return u ? (u.letter || u.maddChar) : ''; };
     const level = opts.level || 'tajweed', tau = opts.tau == null ? 0.12 : opts.tau;
     const list = ops(X, H, y0, y1);
     const ms = opts.minSure == null ? 0.8 : opts.minSure;
@@ -204,10 +231,12 @@
           if (ok.includes(yu.madd) || (atEnd && W.last)) continue;
           if (Math.abs(yu.madd - xu.madd) === 1 && rule !== 'N') continue;
           if (ok.some(n => Math.abs(n - yu.madd) <= 1) && sure(H, o.y) < 0.9) continue;
-          e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: yu.str, msg: `${rule ? cap(MADD_NAMES[rule]) : 'Madd'}: hold for ${ok.join(' or ')} counts (heard ${yu.madd})` };
+          e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: yu.str, msg: `${rule ? MADD_NAMES[rule] : 'Madd'}: hold for ${counts(ok)} (you held ${yu.madd})` };
         } else if (xu.letter && xu.letter === yu.letter) {
-          if (xu.ghunnah !== yu.ghunnah) e = { type: 'ghunnah', sev: 'tajweed', exp: xu.str, got: yu.str, msg: xu.ghunnah ? (xu.base.includes('ں') ? 'Ikhfaʾ: hide the nun with ghunnah' : xu.base.includes('۾') ? 'Ikhfaʾ shafawi: hide the mim with ghunnah' : 'Ghunnah: hold the nasal sound for 2 counts') : 'No ghunnah here' };
-          else if (xu.qalqala !== yu.qalqala) e = { type: 'qalqala', sev: 'tajweed', exp: xu.str, got: yu.str, msg: xu.qalqala ? `Qalqalah: bounce the ${LETTER_NAMES[xu.letter] || xu.letter}` : 'No qalqalah here' };
+          if (xu.ghunnah !== yu.ghunnah) e = { type: 'ghunnah', sev: 'tajweed', exp: xu.str, got: yu.str, msg: ghunnahMsg(xu, nextLetter(o.x)) };
+          else if (xu.qalqala !== yu.qalqala) e = { type: 'qalqala', sev: 'tajweed', exp: xu.str, got: yu.str, msg: xu.qalqala
+            ? (atEnd && (W.last || opts.pauseAfter) ? `Qalqalah kubrā: when stopping, bounce the ${lname(xu.letter)} clearly` : `Qalqalah ṣughrā: bounce the ${lname(xu.letter)} lightly, without a vowel`)
+            : `No qalqalah on the ${lname(xu.letter)}` };
           else if (xu.shadda !== yu.shadda) e = { type: 'shadda', sev: 'wrong', exp: xu.str, got: yu.str, msg: xu.shadda ? `Shaddah: double the ${LETTER_NAMES[xu.letter] || xu.letter}` : `No shaddah on the ${LETTER_NAMES[xu.letter] || xu.letter}` };
           else if (xu.haraka !== yu.haraka) {
             if (atEnd && (W.last || opts.pauseAfter)) continue; // the ending changes when stopping
@@ -217,6 +246,7 @@
           e = { type: 'letter', sev: 'wrong', exp: xu.str, got: yu.str, msg: `Expected a long vowel, heard ${yu.str}` };
         } else {
           e = { type: 'letter', sev: 'wrong', exp: xu.str, got: yu.str, msg: `Letter: ${LETTER_NAMES[xu.letter] || xu.str}, not ${LETTER_NAMES[yu.letter] || yu.str}` };
+          if (!(xu.letter && yu.letter && near(xu.letter, yu.letter)) && sure(H, o.y) < 0.98) e.weak = true;
         }
       } else if (o.op === 'del') {
         if (heardMaybe(H, o.y, X[o.x], 0.03) || heardMaybe(H, o.y - 1, X[o.x], 0.03)) continue;
@@ -225,8 +255,9 @@
         if (atEnd && (W.last || opts.pauseAfter) && (xu.madd || !xu.base)) continue;
         if (xu.madd) {
           const ok = rule && MADD_OK[rule] ? MADD_OK[rule] : [xu.madd];
-          e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: '', msg: `${rule ? cap(MADD_NAMES[rule]) : 'Madd'}: lengthen for ${ok.join(' or ')} counts` };
-        } else e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: `Missing: ${LETTER_NAMES[xu.letter] || xu.str}` };
+          e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: '', msg: `${rule ? MADD_NAMES[rule] : 'Madd'}: lengthen for ${counts(ok)}` };
+        } else if (xu.letter === 'ل' && !xu.haraka && !xu.shadda && !SUN.includes(nextLetter(o.x))) e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: 'Lām qamariyyah: pronounce the lam clearly' };
+        else e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: `Missing: ${lname(xu.letter) || xu.str}` };
       } else if (o.op === 'ins') {
         if (sure(H, o.y) < ms || edgeMerge(o)) continue;
         // A stutter or a restart (the same sound again) is not a mistake.
@@ -235,9 +266,12 @@
         if (o.x < X.length && X[o.x] === H[o.y].id) continue;
         if (o.x > 0 && X[o.x - 1] === H[o.y].id) continue;
         if (yu.madd) { if (yu.madd <= 2) continue; e = { type: 'madd', sev: 'tajweed', exp: '', got: yu.str, msg: 'Extra lengthening' }; }
-        else if ((yu.letter === 'ن' || yu.letter === 'م') && units[X[o.x]] && units[X[o.x]].shadda) e = { type: 'idgham', sev: 'tajweed', exp: '', got: yu.str, msg: 'Idgham: merge the nun into the next letter' };
+        else if ((yu.letter === 'ن' || yu.letter === 'م') && units[X[o.x]] && units[X[o.x]].shadda) {
+          const l = units[X[o.x]].letter;
+          e = { type: 'idgham', sev: 'tajweed', exp: '', got: yu.str, msg: 'لر'.includes(l) ? `Idghām without ghunnah: merge the nun completely into the ${lname(l)}` : yu.letter === 'م' && l === 'م' ? 'Idghām mithlayn: merge the mim into the next mim, with ghunnah' : `Idghām with ghunnah: merge the nun into the ${lname(l)}, keeping the ghunnah` };
+        } else if (yu.letter === 'ل' && !yu.haraka && units[X[o.x]] && units[X[o.x]].shadda && SUN.includes(units[X[o.x]].letter)) e = { type: 'idgham', sev: 'wrong', exp: '', got: yu.str, msg: `Lām shamsiyyah: don't say the lam; double the ${lname(units[X[o.x]].letter)}` };
         else if (heardMaybe(H, o.y, -1, 1)) continue;
-        else e = { type: 'extra', sev: 'wrong', exp: '', got: yu.str, msg: `Extra sound: ${yu.str}` };
+        else e = { type: 'extra', sev: 'wrong', exp: '', got: yu.str, msg: `Extra sound: ${yu.str}`, weak: sure(H, o.y) < 0.98 };
       }
       if (!e) continue;
       if (level === 'words' && e.sev !== 'wrong') continue;
@@ -245,6 +279,9 @@
       if (level === 'harakat' && e.sev === 'tajweed') continue;
       errs.push(e);
     }
+    // One unlikely slip in an otherwise right word is the model, not the reader; several
+    // (a different word was said) are reported.
+    if (errs.length === 1 && errs[0].weak) return [];
     return errs;
   }
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -256,10 +293,16 @@
     const k = W[kind + 'Rules'];
     if (k) return k;
     const r = new Array(U.length).fill(null);
-    if (kind === 'ibt') { const sh = U.length - W.wasl.length; W.rules.forEach((x, i) => { if (i + sh >= 0 && i + sh < r.length) r[i + sh] = x; }); }
-    else {
-      W.rules.forEach((x, i) => { if (i < r.length && U[i] === W.wasl[i]) r[i] = x; });
-      for (let i = U.length - 1; i >= Math.max(0, U.length - 3); i--) if (units[U[i]] && units[U[i]].madd && !r[i]) { r[i] = 'A'; break; }
+    if (kind === 'ibt') { const sh = U.length - W.wasl.length; W.rules.forEach((x, i) => { if (i + sh >= 0 && i + sh < r.length && U[i + sh] === W.wasl[i]) r[i + sh] = x; }); }
+    else W.rules.forEach((x, i) => { if (i < r.length && U[i] === W.wasl[i]) r[i] = x; });
+    // A madd near the end that differs from the joined form was made by stopping: madd ʿarid
+    // (a stopped attached madd keeps its own rule, P).
+    const sh = U.length - W.wasl.length;
+    for (let i = U.length - 1; i >= Math.max(0, U.length - 3); i--) {
+      if (!units[U[i]] || !units[U[i]].madd) continue;
+      const j = i - (kind === 'ibt' ? sh : 0), orig = W.rules[j];
+      if (!r[i] || (U[i] !== W.wasl[j] && orig !== 'T' && orig !== 'P')) r[i] = orig === 'T' ? 'P' : 'A';
+      break;
     }
     W[kind + 'Rules'] = r;
     return r;
@@ -362,7 +405,8 @@
       const pauseAfter = !!(pauses && pauses.has(y + cur.k));
       // While still reciting, judge a word only once the next sounds have come in.
       if (!final && !pauseAfter && y + cur.k + (opts.settle == null ? 4 : opts.settle) > H.length) break;
-      let errs = explain(w, cur.form, H, y, y + cur.k, Object.assign({}, opts, { pauseAfter }));
+      const nw = W(p + 1);
+      let errs = explain(w, cur.form, H, y, y + cur.k, Object.assign({}, opts, { pauseAfter, nextUnit: nw && !pauseAfter ? nw.wasl[0] : -1 }));
       // The recording stopped in the middle of this word: don't judge the unsaid part.
       if (final && y + cur.k >= H.length && errs.length && errs.every(e => e.type === 'missing' || (e.type === 'madd' && !e.got))) {
         const said = cur.k / Math.max(1, cur.form.units.length);

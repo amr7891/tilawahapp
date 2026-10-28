@@ -54,13 +54,15 @@ Change `APP_NAME` in `app.js`, the `<title>` in `index.html`, and `name`/`short_
 
 **Tajweed checker** (`tajweed.js`). Every word of the Quran has a reference pronunciation in Hafs ʿan ʿAsim (`data/quran-ph.json`), worked out by the open quran-transcript phonetizer: as read in continuous recitation, when you stop on the word (waqf) and when you start from it (ibtidaʾ), with each madd's type. Word by word, the app compares what was heard with it and names the mistake:
 
-- **Wrong** (red): a wrong or missing letter, a wrong haraka, a missing or extra shaddah.
-- **Tajweed** (amber, wavy line): a madd too short or too long for its type (natural 2; munfasil 2, 4 or 5; muttasil 4–6; ʿarid 2, 4 or 6; leen 2, 4 or 6; lazim 6), ghunnah, ikhfaʾ, idgham or qalqalah not applied.
+The rules and their names follow *Tajweed Rules of the Qur'an* (Kareema Carol Czerepinski, part one), Hafs ʿan ʿAsim by way of ash-Shāṭibiyyah:
+
+- **Clear mistake** (laḥn jalī, red): a wrong or missing letter, a wrong haraka or sukun, a missing or extra shaddah, lām shamsiyyah / qamariyyah.
+- **Tajweed** (laḥn khafī, amber, wavy line): a madd too short or too long for its type (natural 2; separated/munfaṣil 4 or 5; attached/muttaṣil 4 or 5, or 6 when stopping on its hamza; ʿāriḍ lis-sukūn 2, 4 or 6; līn when stopping 2, 4 or 6; compulsory/lāzim 6); the noon sakinah and tanween rules (iẓhār, idghām with and without ghunnah, iqlāb, ikhfāʾ); the meem sakinah rules (ikhfāʾ shafawī, idghām mithlayn, iẓhār shafawī); ghunnah on a doubled noon or meem; qalqalah ṣughrā and kubrā.
 - **Skipped** (gold): words, phrases or ayahs left out.
 
 Repeating is fine: going back over a word or phrase replaces the earlier attempt. Stutters, an opening taʿawwudh or basmala, stopping and starting anywhere, and joining ayahs are all allowed. Tap a marked word to see what was wrong. Settings → Reciting → What to check chooses all of this, letters and harakat only, or words only.
 
-When the model is unsure (it heard the expected sound as a close second choice), the word is not marked, so marks are rarely false alarms. In tests on professional reciters 1–4% of words were marked; on learners' recordings, 82% of recordings that a teacher had marked as wrong were also marked here.
+When the model is unsure (it heard the expected sound as a close second choice), the word is not marked. A single swap between letters from far-apart articulation points (fa for kaf) in an otherwise right word is taken as the model mishearing and not marked; swaps between letters a reader really mixes up (same or neighbouring makhraj, heavy/light pairs such as ص/س, ط/ت, ق/ك, ح/ه) are. In tests on professional reciters about 1.4% of words were marked.
 
 **Phone's built-in recognizer** (Settings → Reciting → Recitation checking). A general Arabic recognizer that checks words only, and needs internet.
 

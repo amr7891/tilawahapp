@@ -1530,13 +1530,13 @@ function showSummaryFor(res) {
       <p>${esc(Q.ch(f.s).en)} ${f.s}:${f.a} to ${l.s}:${l.a} · <b>${pct}%</b> of words correct · ${fmtDuration(Date.now() - rec.startedAt)}</p>
       <div class="stats">
         <div class="s-ok"><b>${ok}</b><span>Correct</span></div>
-        <div class="s-bad"><b>${wrong}</b><span>Wrong</span></div>
+        <div class="s-bad"><b>${wrong}</b><span>Clear mistakes</span></div>
         ${rec.phon ? `<div class="s-taj"><b>${taj}</b><span>Tajweed</span></div>` : ''}
         <div class="s-skip"><b>${skip}</b><span>Skipped</span></div>
       </div>
       ${mistakes.length ? `<ul class="mistakes">${mistakes.map(m => `
         <li>
-          <span class="kind ${m.s}">${m.s === 'wrong' ? 'Wrong' : m.s === 'tajweed' ? 'Tajweed' : 'Skipped'}</span>
+          <span class="kind ${m.s}" title="${m.s === 'wrong' ? 'Laḥn jalī: a clear mistake in a letter, vowel or sukun' : m.s === 'tajweed' ? 'Laḥn khafī: a tajweed rule (madd, ghunnah, idgham, qalqalah…)' : ''}">${m.s === 'wrong' ? 'Clear mistake' : m.s === 'tajweed' ? 'Tajweed' : 'Skipped'}</span>
           <span class="ref">${m.w.s}:${m.w.a}</span>
           <span class="word" lang="ar">${esc(m.w.text)}</span>
           ${m.e ? `<span class="why">${m.e.map(x => esc(x.msg)).join('<br>')}</span>` : ''}
