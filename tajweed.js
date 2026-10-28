@@ -507,10 +507,28 @@
         const here = run(p, y, 3);
         // Went back to repeat earlier words? The new attempt replaces the old one.
         let back = 0;
-        for (let j = 1; j <= 12 && p - j >= 0; j++) {
-          if (!W(p - j)) continue;
-          const b = run(p - j, y, 3);
-          if (b && b.norm < 0.25 && b.norm < here.norm - 0.2) { back = j; break; }
+        // Of the places that read about equally well, a reader going back usually starts an ayah.
+        const pick = (cands, n, yy) => {
+          if (!cands.length) return null;
+          const top = Math.min(...cands.map(c => c.norm));
+          const near = cands.filter(c => c.norm <= top + 0.06);
+          let c = near.find(x => words[p - x.j] && words[p - x.j].pos === 1) || near.reduce((a, b) => (b.norm < a.norm ? b : a));
+          // A start of the ayah up to 3 words before it, reading nearly as well, is likelier.
+          const w = words[p - c.j];
+          if (w && w.pos > 1 && w.pos <= 4) {
+            const k = p - c.j - (w.pos - 1);
+            if (k >= 0 && words[k] && words[k].a === w.a && words[k].pos === 1) { const r = run(k, yy, n); if (r && r.norm <= c.norm + 0.12) c = { j: p - k, norm: r.norm }; }
+          }
+          return c;
+        };
+        {
+          const cands = [];
+          for (let j = 1; j <= 12 && p - j >= 0; j++) {
+            if (!W(p - j)) continue;
+            const b = run(p - j, y, 3);
+            if (b && b.norm < 0.25 && b.norm < here.norm - 0.2) cands.push({ j, norm: b.norm });
+          }
+          const c = pick(cands, 3, y); if (c) back = c.j;
         }
         // After a pause, readers often go back to the start of the ayah (or further) and
         // recite it again; the first word after the pause is often unclear. Compare more
@@ -522,12 +540,14 @@
         if (lastStart && lastStart.afterPause && lastStart.p === p - 1) starts.push([p - 1, lastStart.y]);
         if (!back) for (const [p1, y1] of starts) {
           const here5 = run(p1, y1, 5);
-          let best = null;
+          const cands = [];
           for (let j = 1; j <= 30 && p1 - j >= 0; j++) {
             if (!W(p1 - j)) continue;
             const b = run(p1 - j, y1, 5);
-            if (b && b.used >= 3 && b.norm < 0.38 && (!here5 || b.norm < here5.norm - 0.15) && (!best || b.norm < best.norm - 0.02)) best = { j, norm: b.norm };
+            if (b && b.used >= 3 && b.norm < 0.38 && (!here5 || b.norm < here5.norm - 0.15)) cands.push({ j: j + (p - p1), norm: b.norm });
           }
+          let best = pick(cands, 5, y1);
+          if (best) best = { j: best.j - (p - p1), norm: best.norm };
           const key = (p1 - (best ? best.j : 0)) + ':' + y1;
           if (best && !tried.has(key)) { tried.add(key); back = best.j + (p - p1); y = y1; break; }
         }
@@ -630,6 +650,7 @@
         if (c) st.flagged.set(i, c); else st.flagged.delete(i);
         if (bad && c < (opts.hold || 2)) { status[i] = 'ok'; errors[i] = null; }
         else if (bad) st.shown.set(i, [status[i], errors[i]]);
+        else if (status[i] === 'ok') st.shown.delete(i);   // said again, rightly: the old mark goes
       }
     } else {
       // A mark the reader has already seen stays in the final result.
