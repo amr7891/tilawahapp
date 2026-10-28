@@ -36,7 +36,6 @@ const RECITERS = [
   { id: 'Abdullaah_3awwaad_Al-Juhaynee_128kbps', name: 'Abdullah Awad Al-Juhany', arabic: 'عبد الله عواد الجهني' },  // JUHANI_PENDING
   { id: 'Abdurrahmaan_As-Sudais_192kbps', name: 'Abdur-Rahman as-Sudais', arabic: 'عبد الرحمن السديس' },
   { id: 'Abu_Bakr_Ash-Shaatree_128kbps', name: 'Abu Bakr al-Shatri', arabic: 'أبو بكر الشاطري' },
-  { id: 'mp3quran-137', name: 'Ahmed Talib bin Humaid', arabic: 'أحمد طالب بن حميد', timed: { local: 'ahmad-humaid', read: 137, base: MP3Q + 'ahmad-humaid/r1/' }, missing: [9, 14, 16, 17, 23, 24, 33] },
   { id: 'Hudhaify_128kbps', name: 'Ali Al-Huthaify', arabic: 'علي بن عبد الرحمن الحذيفي' },
   { id: 'Fares_Abbad_64kbps', name: 'Fares Abbad', arabic: 'فارس عباد' },
   { id: 'mp3quran-273', name: 'Haitham Al-Dokhin', arabic: 'هيثم الدخين', timed: { local: 'haitham-dukhain', read: 273, base: MP3Q + 'haitham-dukhain/r1/' } },
