@@ -1772,6 +1772,7 @@ function saveRecitation() {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 }
 
+$('#saveRecBtn').addEventListener('click', e => { e.preventDefault(); saveRecitation(); });
 $('#summaryBody').addEventListener('click', e => {
   if (e.target.closest('[data-save-rec]')) { e.preventDefault(); saveRecitation(); return; }
   const b = e.target.closest('button');
