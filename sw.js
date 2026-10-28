@@ -5,7 +5,7 @@
 // - Books: each PDF is downloaded once, then read from the phone.
 // - Recitation audio streams from EveryAyah / MP3Quran (not from this site) and the
 //   ayahs you play are kept so they replay offline.
-const SHELL = 'tilawah-shell-v52';
+const SHELL = 'tilawah-shell-v53';
 const DATA = 'tilawah-data-v4';
 const BOOKS = 'tilawah-books-v1';
 const AUDIO = 'tilawah-audio-v1';
@@ -62,8 +62,28 @@ async function withRange(req, res) {
     'Content-Range': `bytes ${start}-${end}/${buf.byteLength}`, 'Content-Length': String(end - start + 1), 'Accept-Ranges': 'bytes' } });
 }
 
+// A PDF shared to the app (Android: Share → Tilawah) is kept on the phone and the app
+// opens to file it under its book. The app itself hosts no books.
+function putShared(value) {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('tilawah-books', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('files');
+    r.onerror = () => rej(r.error);
+    r.onsuccess = () => { const t = r.result.transaction('files', 'readwrite'); t.objectStore('files').put(value, 'inbox'); t.oncomplete = () => res(); t.onerror = () => rej(t.error); };
+  });
+}
 self.addEventListener('fetch', e => {
   const req = e.request;
+  if (req.method === 'POST' && new URL(req.url).pathname.endsWith('/share-target')) {
+    e.respondWith((async () => {
+      try {
+        const f = (await req.formData()).get('pdf');
+        if (f && f.size) await putShared({ name: f.name || 'Book.pdf', blob: new Blob([await f.arrayBuffer()], { type: 'application/pdf' }) });
+      } catch (_) {}
+      return Response.redirect(new URL('./#inbox', self.registration.scope).href, 303);
+    })());
+    return;
+  }
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 

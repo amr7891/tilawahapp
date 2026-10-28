@@ -614,6 +614,7 @@ async function route() {
   if ((m = h.match(/^page-(\d+)$/))) { openMushaf(+m[1]); warmSpeech(); return; }
   if (h === 'mushaf') { openMushaf(store.get('mushafPage', 1)); warmSpeech(); return; }
   if ((m = h.match(/^hadith-([a-z0-9_]+)(?:-(\d+)(?:-(\d+))?)?$/))) { openLibrary(m[1], m[2] ? +m[2] : null, m[3] ? +m[3] : null); return; }
+  if (h === 'inbox') { fileSharedBook(); return; }
   if ((m = h.match(/^book-([a-z0-9-]+)$/))) { openBook(m[1]); return; }
   if ((m = h.match(/^read-([a-z0-9-]+?)-(\d+)(?:-p(\d+))?(?:-n(\d+))?$/))) { pdfReader.open(m[1], +m[2], { page: m[3] ? +m[3] : null, note: m[4] ? +m[4] : null }); return; }
   if (h === 'saved') { showView('saved'); scrollTop(); return; }
@@ -2290,6 +2291,27 @@ async function addMyBook() {
     location.hash = 'read-' + id + '-0';
   });
 }
+// A PDF shared to the app: file it under the listed book it matches (by file name),
+// otherwise under My books, then open it.
+async function fileSharedBook() {
+  const got = await bookFiles.get('inbox');
+  if (!got || !got.blob) { location.hash = 'library'; return; }
+  const base = n => decodeURIComponent(String(n || '')).toLowerCase().replace(/\.pdf$/, '').replace(/[^a-z0-9]+/g, '');
+  const name = base(got.name);
+  let key = null;
+  for (const sh of SHELVES) for (const b of sh.items) b.files.forEach((f, i) => {
+    if (!key && f.url && base(f.url.split('/').pop()) === name) key = [b.id, i];
+  });
+  if (!key) {
+    const id = 'my-' + Date.now().toString(36);
+    store.set('myBooks', [{ id, title: decodeURIComponent(got.name).replace(/\.pdf$/i, '').replace(/[_]+/g, ' ').trim() || 'Book', t: Date.now() }].concat(myBooks()));
+    key = [id, 0];
+  }
+  try { await bookFiles.put(`${key[0]}:${key[1]}`, got.blob); await bookFiles.del('inbox'); }
+  catch (_) { toast('There isn\u2019t enough space on this phone to keep that book.', 'bad'); location.hash = 'library'; return; }
+  toast('Book added. It\u2019s on this phone now and opens offline.');
+  location.replace('#read-' + key[0] + '-' + key[1]);
+}
 async function removeMyBook(id) {
   const m = myBooks().find(x => x.id === id); if (!m) return;
   store.set('myBooks', myBooks().filter(x => x.id !== id));
@@ -2482,7 +2504,7 @@ const pdfReader = {
         <a class="btn" href="${esc(file.url && /^https?:/.test(file.url) ? file.url : bookSourceUrl(b))}" target="_blank" rel="noopener" download>Download the PDF</a>
         <button type="button" class="btn primary" id="pdfAdd">Add the PDF</button>
       </div>
-      <p class="pdf-hint" hidden>${isIOS ? 'On iPhone: when the PDF opens, tap Share \u2192 Save to Files. Then come back here, tap Add the PDF and choose it (Browse \u2192 Downloads or On My iPhone).' : 'When the download finishes, come back here, tap Add the PDF and choose it from Downloads.'}</p></div>`;
+      <p class="pdf-hint" hidden>${isIOS ? 'On iPhone: when the PDF opens, tap Share \u2192 Save to Files. Then come back here, tap Add the PDF and choose it (Browse \u2192 Downloads or On My iPhone).' : 'When the download finishes, open it and tap Share \u2192 Tilawah (with the app on your home screen), or come back here, tap Add the PDF and choose it from Downloads.'}</p></div>`;
     $('#pdfAdd').addEventListener('click', () => this.addFor(b, fi));
     st.querySelector('.pdf-get a').addEventListener('click', () => {
       const hint = st.querySelector('.pdf-hint'); if (hint) hint.hidden = false;
