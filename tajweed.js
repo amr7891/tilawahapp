@@ -306,9 +306,9 @@
     }
     // One unlikely slip in an otherwise right word is the model, not the reader; several
     // (a different word was said) are reported.
-    if (errs.length === 1 && errs[0].weak) return [];
+    if (errs.length && errs.every(e => e.weak) && errs.length < (poor ? 3 : 2)) return [];
     const baseMs = opts.minSure == null ? 0.8 : opts.minSure;
-    if (!errs.length && (doubt.length >= (poor ? 3 : 2) || (poor && doubt.length >= 2 && doubt.some(e => e.conf >= baseMs)))) return doubt.filter(e => !(level === 'words' && (e.type === 'haraka' || e.type === 'shadda')));
+    if (!errs.length && doubt.length >= (poor ? 3 : 2)) return doubt.filter(e => !(level === 'words' && (e.type === 'haraka' || e.type === 'shadda')));
     return errs;
   }
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);

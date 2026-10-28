@@ -396,7 +396,7 @@ button.player-meta:hover { background: var(--surface-2); }
 .h-pager .btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* Book shelves */
-.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 8px; scrollbar-width: none; }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 8px; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
 .chips::-webkit-scrollbar { display: none; }
 .chip-btn { flex: none; height: 34px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; }
 .chip-btn:hover { border-color: var(--accent); color: var(--accent); }
