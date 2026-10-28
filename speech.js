@@ -7,6 +7,11 @@
 
   const RATE = 16000;
   let worker = null, ready = false, loadErr = null;
+  // The last recitation's audio (16 kHz), kept in memory only so the reader can save it
+  // and send it in if the checking went wrong. Up to 15 minutes; never uploaded.
+  let rec16 = [], recLen = 0, recMeta = null;
+  const REC_MAX = RATE_MAX();
+  function RATE_MAX() { return 16000 * 60 * 15; }
   const listeners = new Set();
 
   function ensureWorker() {
@@ -77,6 +82,7 @@
         listeners.add(listener);
         ensureWorker();
         worker.postMessage({ type: 'reset' });
+        rec16 = []; recLen = 0; recMeta = opts.meta || null;
         onState(ready ? 'listening' : 'loading', null);
         try {
           // The phone's noise suppression and echo cancellation blur exactly the sounds the
@@ -96,7 +102,7 @@
         catch (_) { try { ctx.close(); } catch (e) {} ctx = new AC(); if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (e) {} } src = ctx.createMediaStreamSource(stream); }
         firRate = 0;
         const mute = ctx.createGain(); mute.gain.value = 0;
-        const send = block => { if (!running) return; const d = down(block, ctx.sampleRate); worker.postMessage({ type: 'audio', data: d }, [d.buffer]); };
+        const send = block => { if (!running) return; const d = down(block, ctx.sampleRate); if (recLen < REC_MAX) { rec16.push(d.slice()); recLen += d.length; } worker.postMessage({ type: 'audio', data: d }, [d.buffer]); };
         // Capture on the audio thread (AudioWorklet), so a busy page never drops audio;
         // older browsers fall back to a ScriptProcessor.
         node = null;
@@ -138,5 +144,17 @@
     };
   }
 
-  root.QuranSpeech = { supported, create, preload: ensureWorker, get ready() { return ready; } };
+  // The last recitation as a WAV file (16-bit, 16 kHz, mono).
+  function lastRecording() {
+    if (!recLen) return null;
+    const buf = new ArrayBuffer(44 + recLen * 2), v = new DataView(buf);
+    const w = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + recLen * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, RATE, true); v.setUint32(28, RATE * 2, true);
+    v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, recLen * 2, true);
+    let o = 44;
+    for (const c of rec16) for (let i = 0; i < c.length; i++, o += 2) v.setInt16(o, Math.max(-1, Math.min(1, c[i])) * 32767, true);
+    return { blob: new Blob([buf], { type: 'audio/wav' }), meta: recMeta, seconds: Math.round(recLen / RATE) };
+  }
+  root.QuranSpeech = { supported, create, preload: ensureWorker, lastRecording, get ready() { return ready; } };
 })(this);

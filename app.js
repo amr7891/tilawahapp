@@ -1756,10 +1756,24 @@ function showSummaryFor(res) {
         <button class="btn" type="button" data-retry="${Q.all[nextGi].join(':')}">Continue reciting</button>
       </div>`;
   }
+  const recd = rec.phon && QuranSpeech.lastRecording && QuranSpeech.lastRecording();
+  if (recd) body.insertAdjacentHTML('beforeend', `<p class="rec-save">Marked something wrongly? <button type="button" class="linkish" data-save-rec>Save this recitation</button> (${recd.seconds} s audio, stays on your phone) and send it in, so the checking can be fixed.</p>`);
   $('#summarySheet').showModal();
 }
 
+function saveRecitation() {
+  const r = QuranSpeech.lastRecording && QuranSpeech.lastRecording();
+  if (!r) { toast('No recitation to save yet.', 'bad'); return; }
+  const w = rec.expected && rec.expected[0], d = new Date();
+  const name = `tilawah-${w ? `${w.s}-${w.a}` : 'recitation'}-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.wav`;
+  const file = new File([r.blob], name, { type: 'audio/wav' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: name }).catch(() => {}); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = name; document.body.append(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+
 $('#summaryBody').addEventListener('click', e => {
+  if (e.target.closest('[data-save-rec]')) { e.preventDefault(); saveRecitation(); return; }
   const b = e.target.closest('button');
   if (!b) return;
   $('#summarySheet').close();

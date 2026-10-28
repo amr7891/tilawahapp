@@ -814,3 +814,4 @@ input, textarea, select { font-size: 16px; }
 .arb-tools .sw { width: 28px; height: 28px; border-radius: 50%; border: 0; }
 .arb-tools .icon-btn.on { color: var(--accent); }
 .arb-tools .icon-btn.on svg { fill: currentColor; }
+.rec-save { margin: 14px 2px 0; font-size: 13px; color: var(--muted); line-height: 1.5; } .linkish { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
