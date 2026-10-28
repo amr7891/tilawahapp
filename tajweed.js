@@ -277,7 +277,9 @@
           const ok = rule && MADD_OK[rule] ? MADD_OK[rule] : [xu.madd];
           e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: '', msg: `${rule ? MADD_NAMES[rule] : 'Madd'}: lengthen for ${counts(ok)}` };
         } else if (xu.letter === 'ل' && !xu.haraka && !xu.shadda && !SUN.includes(nextLetter(o.x))) e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: 'Lām qamariyyah: pronounce the lam clearly' };
-        else e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: `Missing: ${lname(xu.letter) || xu.str}`, weak: poor && conf < 0.97 };
+        // The first sound after a pause is easily lost by the model (a consonant coming out of
+        // silence): on its own that is doubtful.
+        else e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: `Missing: ${lname(xu.letter) || xu.str}`, weak: (poor && conf < 0.97) || (o.x === 0 && !!opts.afterPause && !list.some(q => q.op === 'ins' && Math.abs(q.y - o.y) <= 1)) };
       } else if (o.op === 'ins') {
         if (edgeMerge(o)) continue;
         low = sure(H, o.y) < ms; var conf = sure(H, o.y);
@@ -448,7 +450,7 @@
       // While still reciting, judge a word only once the next sounds have come in.
       if (!final && !pauseAfter && y + cur.k + (opts.settle == null ? 4 : opts.settle) > H.length) break;
       const nw = W(p + 1);
-      let errs = explain(w, cur.form, H, y, y + cur.k, Object.assign({}, opts, { pauseAfter, nextUnit: nw && !pauseAfter ? nw.wasl[0] : -1 }));
+      let errs = explain(w, cur.form, H, y, y + cur.k, Object.assign({}, opts, { pauseAfter, afterPause, nextUnit: nw && !pauseAfter ? nw.wasl[0] : -1 }));
       // A long vowel straight after the word's last short vowel, of the same kind (ۥۥ after
       // ḍamma…), lengthens that vowel: e.g. ʿalā l- for ʿala l- (a madd kept before a sukun).
       // It belongs to this word, not to the start of the next.
