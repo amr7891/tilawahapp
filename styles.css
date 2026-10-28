@@ -166,7 +166,6 @@ a.surah-row { color: inherit; text-decoration: none; }
 /* In the text view, highlights colour the words instead of boxing them. */
 .qtext .w.playing, .qtext .w.selected, .qtext .end.lit { background: none; color: var(--accent); }
 .qtext .w.wrong, .qtext .w.skip { background: none; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: .35em; }
-.qtext .w.hidden { background: none; color: transparent; text-shadow: 0 0 .5em color-mix(in srgb, var(--ink) 35%, transparent); }
 .qtext .w.next { box-shadow: none; text-decoration: underline; text-decoration-color: var(--gold); text-decoration-thickness: 2px; text-underline-offset: .35em; }
 
 /* Word states, shared by the mushaf and the text view. */
@@ -177,7 +176,6 @@ a.surah-row { color: inherit; text-decoration: none; }
 .w.wrong { color: var(--bad); background: color-mix(in srgb, var(--bad) 16%, transparent); }
 .w.skip { color: var(--skip); background: color-mix(in srgb, var(--skip) 18%, transparent); }
 .w.next { box-shadow: inset 0 -0.08em 0 var(--gold); }
-.w.hidden { color: transparent; background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .translation { margin: 6px 0 0; color: var(--muted); font-size: 15px; line-height: 1.6; max-width: 65ch; }
 .hide-translation .translation { display: none; }
 .loading { padding: 40px 0; text-align: center; color: var(--muted); }
@@ -240,7 +238,7 @@ a.surah-row { color: inherit; text-decoration: none; }
 /* Mushaf reader: the page fills the screen; tap the middle to show or hide the bars. */
 .app.immersive .topbar, .app.immersive .tabs { display: none; }
 .reader { position: fixed; inset: 0; z-index: 28; background: var(--page-bg); overflow: hidden; touch-action: pan-y; }
-.page-stage { position: absolute; inset: 0; display: grid; place-items: center; user-select: none; -webkit-user-select: none;
+.page-stage { position: absolute; inset: 0; touch-action: pan-y; display: grid; place-items: center; user-select: none; -webkit-user-select: none;
   padding: calc(6px + env(safe-area-inset-top, 0px)) max(6px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px)); }
 .mpage {
   grid-area: 1 / 1; display: flex; flex-direction: column; max-width: 100%;
@@ -484,9 +482,14 @@ button.player-meta:hover { background: var(--surface-2); }
 .install-row { width: 100%; margin-top: 4px; }
 .w.hidden { cursor: pointer; }
 /* The tajweed page fonts draw their own colours, so hidden words are covered instead. */
-.mpage .w.hidden { position: relative; color: transparent; background: none; }
-.mpage .w.hidden::after { content: ''; position: absolute; inset: 18% 2px; border-radius: .25em; background: color-mix(in srgb, var(--paper-ink) 8%, var(--paper)); }
-.mpage .w.hidden.next::after { box-shadow: inset 0 -0.08em 0 var(--gold); }
+/* Memorization: the word itself is invisible (so no vowel mark or tajweed colour shows),
+   and an even bar takes its place. */
+.w.hidden, .qtext .w.hidden { visibility: hidden; position: relative; background: none; text-shadow: none; box-shadow: none; text-decoration: none; }
+.w.hidden::after { visibility: visible; content: ''; position: absolute; left: 1px; right: 1px; top: 50%; height: .78em; transform: translateY(-50%); border-radius: .22em;
+  background: color-mix(in srgb, var(--paper-ink) 9%, var(--paper)); }
+.qtext .w.hidden::after { background: color-mix(in srgb, var(--ink) 9%, var(--surface)); }
+.w.hidden.next::after { background: color-mix(in srgb, var(--gold) 30%, var(--paper)); }
+.qtext .w.hidden.next::after { background: color-mix(in srgb, var(--gold) 30%, var(--surface)); }
 /* Installed (home screen) app: feels native — no text callouts, no double-tap zoom on controls. */
 html.standalone body { overscroll-behavior: none; }
 button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -webkit-touch-callout: none; }
@@ -604,7 +607,7 @@ button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -web
 .mistakes .why { order: 3; }
 
 /* Landscape on phones: the page fills the width and scrolls. */
-.page-stage.scroll { display: block; overflow-y: auto; -webkit-overflow-scrolling: touch;
+.page-stage.scroll { display: block; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   padding-top: calc(64px + env(safe-area-inset-top, 0px)); padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
 .page-stage.scroll .mpage { margin: 0 auto; }
 .page-stage.scroll .page-status { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); }
@@ -636,9 +639,9 @@ button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -web
 
 /* Zoomed mushaf: words reflow into more lines at a larger size. */
 .mpage.reflow { height: auto; }
-.mpage.reflow .mbody { display: block; flex: none; text-align: justify; text-align-last: center; direction: rtl; line-height: 1.9; }
+.mpage.reflow .mbody { display: block; flex: none; text-align: justify; text-align-last: center; direction: rtl; line-height: 1.75; }
 .mpage.reflow .mline.tl { display: inline; height: auto; white-space: normal; }
-.mpage.reflow .mline.tl > span { display: inline-block; line-height: 1.6; }
+.mpage.reflow .mline.tl > span { display: inline-block; line-height: 1.5; }
 .mpage.reflow .mline.hl, .mpage.reflow .mline.bl { height: calc(var(--line-h) * .8); margin: .3em 0; }
 .mpage.reflow .mline.hl .sh { font-size: .9em; }
 .zoom-hint { position: fixed; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: 40; padding: 8px 14px; border-radius: 12px; background: var(--ink); color: var(--bg); font-weight: 700; pointer-events: none; }

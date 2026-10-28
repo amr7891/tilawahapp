@@ -602,7 +602,7 @@ function openMushaf(p) {
 
 // Mushaf size: 1 = the printed page; larger sizes reflow the words into more lines.
 function setMushafZoom(z, quiet) {
-  z = Math.round(Math.min(3, Math.max(1, z)) * 4) / 4;
+  z = Math.round(Math.min(2, Math.max(1, z)) * 4) / 4;
   if (z === (Number(settings.mushafZoom) || 1)) return;
   const wasZoomed = (Number(settings.mushafZoom) || 1) > 1.01;
   settings.mushafZoom = z; saveSettings();
@@ -698,7 +698,7 @@ const mushaf = {
     const ratio = 0.66;
     // Phones held sideways: the page fills the width and scrolls, like a printed page held close.
     const sideways = stage.clientWidth > stage.clientHeight * 1.05 && stage.clientHeight < 700;
-    const zoom = Number(settings.mushafZoom) || 1;
+    const zoom = Math.min(2, Number(settings.mushafZoom) || 1);
     const reflow = page.classList.contains('reflow');
     stage.classList.toggle('scroll', sideways || reflow);
     let pw, ph;
@@ -2605,7 +2605,7 @@ $('#micBtn').addEventListener('click', () => {
     if (!touches.has(e.pointerId)) return;
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch && touches.size === 2) {
-      const z = Math.round(Math.min(3, Math.max(1, pinch.z * dist() / pinch.d)) * 4) / 4;
+      const z = Math.round(Math.min(2, Math.max(1, pinch.z * dist() / pinch.d)) * 4) / 4;
       if (z !== pinch.target) {
         pinch.target = z;
         let h = $('#zoomHint'); if (!h) { h = document.createElement('div'); h.id = 'zoomHint'; h.className = 'zoom-hint'; document.body.append(h); }
