@@ -333,13 +333,13 @@ a.surah-row { color: inherit; text-decoration: none; }
 button.player-meta { border: 0; background: transparent; padding: 4px 6px; border-radius: 10px; text-align: left; cursor: pointer; }
 button.player-meta:hover { background: var(--surface-2); }
 .reciter-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.reciter-opt { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+.reciter-opt { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
 .reciter-opt:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .reciter-opt input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
 .ro-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.ro-text b { font-size: 15px; }
+.ro-text b { font-size: 14px; line-height: 1.3; }
 .ro-text span { font-size: 12px; color: var(--muted); }
-.ro-ar { font-family: var(--font-quran); font-size: 18px; color: var(--accent); }
+.ro-ar { font-family: var(--font-quran); font-size: 16px; color: var(--accent); white-space: nowrap; flex: none; }
 
 /* Translation card over the mushaf */
 .trans-card {
@@ -559,7 +559,7 @@ button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -web
 .sheet::backdrop { background: rgba(0,0,0,.4); }
 .sheet-body { background: var(--surface); border-radius: 22px 22px 0 0; padding: 8px 20px calc(24px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 14px; max-height: 88vh; overflow-y: auto; }
 @media (min-width: 600px) { .sheet { margin: auto; } .sheet-body { border-radius: 22px; } }
-.sheet-head { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--surface); padding-top: 8px; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; position: sticky; top: -8px; z-index: 2; background: var(--surface); margin: -8px -20px 0; padding: 16px 20px 8px; box-shadow: 0 1px 0 var(--line); }
 .sheet-head h2 { margin: 0; font-size: 18px; }
 .field { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
 .field select { height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); padding: 0 12px; font-weight: 400; }
