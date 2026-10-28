@@ -5,7 +5,7 @@
 // - Books: each PDF is downloaded once, then read from the phone.
 // - Recitation audio streams from EveryAyah / MP3Quran (not from this site) and the
 //   ayahs you play are kept so they replay offline.
-const SHELL = 'tilawah-shell-v29';
+const SHELL = 'tilawah-shell-v30';
 const DATA = 'tilawah-data-v4';
 const BOOKS = 'tilawah-books-v1';
 const AUDIO = 'tilawah-audio-v1';
@@ -26,7 +26,8 @@ self.addEventListener('activate', e => {
     .then(keys => Promise.all(keys.filter(k => !KEEP.includes(k)).map(k => caches.delete(k))))
     // Earlier versions saved MP3Quran ayah timings under one entry for every surah and
     // reciter (the query was ignored); drop them so each surah's timings are fetched again.
-    .then(() => caches.open(DATA)).then(c => c.keys().then(reqs => Promise.all(reqs.filter(r => r.url.includes('ayat_timing')).map(r => c.delete(r)))))
+    // Our own ayah timings (small files) are refreshed with every update too.
+    .then(() => caches.open(DATA)).then(c => c.keys().then(reqs => Promise.all(reqs.filter(r => r.url.includes('ayat_timing') || r.url.includes('/data/timings/')).map(r => c.delete(r)))))
     .then(() => self.clients.claim()));
 });
 
