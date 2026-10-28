@@ -138,7 +138,10 @@
         try { if (node) { node.onaudioprocess = null; if (node.port) node.port.onmessage = null; } src && src.disconnect(); node && node.disconnect(); } catch (_) {}
         try { stream && stream.getTracks().forEach(t => t.stop()); } catch (_) {}
         try { ctx && ctx.close(); } catch (_) {}
+        const had = !!(stream || ctx);
         node = src = stream = ctx = null;
+        // Hand the finished recitation to the app (it keeps the last few on the phone).
+        if (had && recLen > RATE && typeof root.QuranSpeech.onRecording === 'function') { try { root.QuranSpeech.onRecording(lastRecording()); } catch (_) {} }
       },
       get busy() { return true; },
     };

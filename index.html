@@ -312,9 +312,9 @@
     </label>
     <label class="toggle"><input id="setHide" type="checkbox"><span><b>Memorization mode</b><small>Hide the words while you recite; each word appears once you say it</small></span></label>
     <label class="toggle"><input id="setPopups" type="checkbox"><span><b>Mistake pop-ups</b><small>Show the correct word when you make a mistake while reciting (otherwise the word is only coloured and the phone vibrates)</small></span></label>
-    <div class="field"><span>Checking got something wrong?</span>
-      <button type="button" class="btn" id="saveRecBtn">Save last recitation</button>
-      <small class="field-note">Saves the audio of your last recitation (up to 15 minutes) as a file, to send in with the words it marked wrongly. It's kept only on this phone until you share it.</small>
+    <div class="field"><span>Your recitations</span>
+      <small class="field-note">Your last 5 recitations are kept on this phone (never uploaded). Play one back, or share or download it to send in with the words it marked wrongly.</small>
+      <ul class="rec-list" id="recList"></ul>
     </div>
     <button type="button" class="btn install-row" id="installBtn">Install Tilawah on this device</button>
   </form>

@@ -1756,23 +1756,68 @@ function showSummaryFor(res) {
         <button class="btn" type="button" data-retry="${Q.all[nextGi].join(':')}">Continue reciting</button>
       </div>`;
   }
-  const recd = rec.phon && QuranSpeech.lastRecording && QuranSpeech.lastRecording();
-  if (recd) body.insertAdjacentHTML('beforeend', `<p class="rec-save">Marked something wrongly? <button type="button" class="linkish" data-save-rec>Save this recitation</button> (${recd.seconds} s audio, stays on your phone) and send it in, so the checking can be fixed.</p>`);
+  if (rec.phon) body.insertAdjacentHTML('beforeend', `<p class="rec-save">Marked something wrongly? This recitation is kept on your phone (Settings → Your recitations). <button type="button" class="linkish" data-save-rec>Share it</button> to send it in.</p>`);
   $('#summarySheet').showModal();
 }
 
-function saveRecitation() {
-  const r = QuranSpeech.lastRecording && QuranSpeech.lastRecording();
-  if (!r) { toast('No recitation to save yet.', 'bad'); return; }
-  const w = rec.expected && rec.expected[0], d = new Date();
-  const name = `tilawah-${w ? `${w.s}-${w.a}` : 'recitation'}-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.wav`;
-  const file = new File([r.blob], name, { type: 'audio/wav' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: name }).catch(() => {}); return; }
-  const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = name; document.body.append(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-}
+// Recitations are kept on this phone (IndexedDB): the last 5, each up to 15 minutes.
+const recordings = {
+  list() { return store.get('recordings', []); },
+  async add(r) {
+    if (!r || !r.blob) return;
+    const w = rec.expected && rec.expected[0];
+    const p = rec.expected && rec.expected[Math.max(0, Math.min((rec.lastPos || 1) - 1, rec.expected.length - 1))];
+    const it = { id: 'rec:' + Date.now(), t: Date.now(), secs: r.seconds, from: w ? `${w.s}:${w.a}` : '', to: p ? `${p.s}:${p.a}` : '', name: w ? Q.ch(w.s).en : 'Recitation' };
+    try { await bookFiles.put(it.id, r.blob); } catch (_) { return; }
+    const all = [it].concat(this.list());
+    all.slice(5).forEach(x => bookFiles.del(x.id));
+    store.set('recordings', all.slice(0, 5));
+    this.render();
+  },
+  fileName(it) { const d = new Date(it.t), z = n => String(n).padStart(2, '0'); return `tilawah-${it.from ? it.from.replace(':', '-') : 'recitation'}-${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}.wav`; },
+  async blob(it) { const b = await bookFiles.get(it.id); if (!b) toast('That recording is no longer on this phone.', 'bad'); return b; },
+  render() {
+    const ul = $('#recList'); if (!ul) return;
+    const l = this.list();
+    ul.innerHTML = l.length ? l.map(it => `<li data-rec="${esc(it.id)}">
+      <span class="rec-info"><b>${esc(it.name)}${it.from ? ` ${esc(it.from)}${it.to && it.to !== it.from ? `–${esc(it.to.split(':')[0] === it.from.split(':')[0] ? it.to.split(':')[1] : it.to)}` : ''}` : ''}</b>
+        <small>${new Date(it.t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · ${it.secs >= 60 ? Math.floor(it.secs / 60) + ' min ' : ''}${it.secs % 60} s</small></span>
+      <button type="button" class="icon-btn" data-rec-act="play" aria-label="Play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <button type="button" class="icon-btn" data-rec-act="share" aria-label="Share"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/></svg></button>
+      <button type="button" class="icon-btn" data-rec-act="dl" aria-label="Download"><svg viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5"/><path d="M5 20h14"/></svg></button>
+      <button type="button" class="icon-btn" data-rec-act="del" aria-label="Delete"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </li>`).join('') : '<li class="rec-empty">No recitations yet. Recite with the mic and it appears here.</li>';
+  },
+  audio: null,
+  async act(id, act) {
+    const it = this.list().find(x => x.id === id); if (!it) return;
+    if (act === 'del') { await bookFiles.del(id); store.set('recordings', this.list().filter(x => x.id !== id)); this.render(); return; }
+    const b = await this.blob(it); if (!b) return;
+    const name = this.fileName(it);
+    if (act === 'play') {
+      if (this.audio) { this.audio.pause(); URL.revokeObjectURL(this.audio.src); }
+      if (this.playing === id) { this.playing = null; this.audio = null; return; }
+      this.audio = new Audio(URL.createObjectURL(b)); this.playing = id; this.audio.onended = () => { this.playing = null; };
+      this.audio.play().catch(() => toast('Couldn’t play the recording.', 'bad'));
+      return;
+    }
+    if (act === 'share') {
+      const file = new File([b], name, { type: 'audio/wav' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); } catch (e) { if (e && e.name !== 'AbortError') toast('Sharing didn’t work here. Try Download instead.', 'bad'); } return; }
+      toast('Sharing files isn’t supported here, so it was downloaded instead.');
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; document.body.append(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  },
+};
+QuranSpeech.onRecording = r => recordings.add(r);
+$('#recList').addEventListener('click', e => {
+  e.preventDefault();
+  const b = e.target.closest('[data-rec-act]'), li = e.target.closest('[data-rec]');
+  if (b && li) recordings.act(li.dataset.rec, b.dataset.recAct);
+});
+function saveRecitation() { const l = recordings.list(); if (l.length) recordings.act(l[0].id, 'share'); else toast('No recitation saved yet.', 'bad'); }
 
-$('#saveRecBtn').addEventListener('click', e => { e.preventDefault(); saveRecitation(); });
 $('#summaryBody').addEventListener('click', e => {
   if (e.target.closest('[data-save-rec]')) { e.preventDefault(); saveRecitation(); return; }
   const b = e.target.closest('button');
@@ -3189,7 +3234,7 @@ function initSettingsSheet() {
   $('#setStrict').addEventListener('change', e => { settings.strict = e.target.value; saveSettings(); if (rec.active && rec.phon) rec.update(false); });
   $('#setLevel').addEventListener('change', e => { settings.checkLevel = e.target.value; saveSettings(); if (rec.active && rec.phon) rec.update(false); });
   $('#setEngine').addEventListener('change', e => { $('#setLevel').disabled = e.target.value === 'browser'; settings.engine = e.target.value; saveSettings(); if (rec.active) rec.stop(false); if (settings.engine === 'quran' && window.QuranSpeech) QuranSpeech.preload(); });
-  const open = () => { sync(); $('#settingsSheet').showModal(); };
+  const open = () => { sync(); recordings.render(); $('#settingsSheet').showModal(); };
   $('#settingsBtn').addEventListener('click', open);
   $('#readerSettings').addEventListener('click', open);
 }

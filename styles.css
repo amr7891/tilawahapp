@@ -815,3 +815,10 @@ input, textarea, select { font-size: 16px; }
 .arb-tools .icon-btn.on { color: var(--accent); }
 .arb-tools .icon-btn.on svg { fill: currentColor; }
 .rec-save { margin: 14px 2px 0; font-size: 13px; color: var(--muted); line-height: 1.5; } .linkish { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.rec-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.rec-list li { display: flex; align-items: center; gap: 2px; padding: 8px 6px 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.rec-list .rec-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rec-list .rec-info b { font-size: 14px; } .rec-list .rec-info small { color: var(--muted); font-size: 12px; }
+.rec-list .icon-btn { width: 36px; height: 36px; flex: none; }
+.rec-list .icon-btn svg { width: 18px; height: 18px; }
+.rec-list .rec-empty { color: var(--muted); font-size: 13px; border-style: dashed; }
