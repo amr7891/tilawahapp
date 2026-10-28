@@ -120,6 +120,8 @@
     if (!X || !Y) return 1;
     if (X.madd && Y.madd) return X.maddChar === Y.maddChar ? 0.25 : 0.6;
     if (X.letter && X.letter === Y.letter) return 0.4;
+    // Letters from the same or a neighbouring articulation point line up first.
+    if (X.letter && Y.letter && near(X.letter, Y.letter)) return 0.8;
     return 1;
   }
   const insCost = y => (units[y] && units[y].madd ? 0.5 : 1);
@@ -217,8 +219,10 @@
       const l = u.letter || u.maddChar;
       return edgeLetter.has(l) && (l === 'و' || l === 'ي' || l === 'ۥ' || l === 'ۦ' || u.shadda || (o.op !== 'sub' && (H[o.y - 1] && units[H[o.y - 1].id] && units[H[o.y - 1].id].letter === l || H[o.y + 1] && units[H[o.y + 1].id] && units[H[o.y + 1].id].letter === l)));
     };
+    const doubt = [];   // differences the model was unsure of: one is noise, several are a mistake
     for (let k = 0; k < list.length; k++) {
       const o = list[k];
+      let low = false;
       const xu = o.op !== 'ins' ? units[X[o.x]] : null;
       const yu = o.op === 'sub' || o.op === 'ins' ? units[H[o.y].id] : null;
       const rule = o.op !== 'ins' && form.rules ? form.rules[o.x] : null;
@@ -227,8 +231,8 @@
       if (o.op === 'eq') { if (opts.stats) { opts.stats.eq++; if (sure(H, o.y) < 0.9) opts.stats.unsure++; } continue; }
       if (o.op === 'sub') {
         if (heardMaybe(H, o.y, X[o.x], tau)) continue;
-        if (sure(H, o.y) < ms) continue;
         if (edgeMerge(o)) continue;
+        low = sure(H, o.y) < ms; var conf = sure(H, o.y);
         if (xu.madd && yu.madd) {
           const ok = rule && MADD_OK[rule] ? MADD_OK[rule] : [xu.madd];
           if (ok.includes(yu.madd) || (atEnd && W.last)) continue;
@@ -253,8 +257,8 @@
         }
       } else if (o.op === 'del') {
         if (heardMaybe(H, o.y, X[o.x], 0.03) || heardMaybe(H, o.y - 1, X[o.x], 0.03)) continue;
-        if (sure(H, o.y) < ms || sure(H, o.y - 1) < ms) continue;
         if (edgeMerge(o)) continue;
+        low = sure(H, o.y) < ms || sure(H, o.y - 1) < ms; var conf = Math.min(sure(H, o.y), sure(H, o.y - 1));
         if (atEnd && (W.last || opts.pauseAfter) && (xu.madd || !xu.base)) continue;
         if (xu.madd) {
           const ok = rule && MADD_OK[rule] ? MADD_OK[rule] : [xu.madd];
@@ -262,7 +266,8 @@
         } else if (xu.letter === 'ل' && !xu.haraka && !xu.shadda && !SUN.includes(nextLetter(o.x))) e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: 'Lām qamariyyah: pronounce the lam clearly' };
         else e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: `Missing: ${lname(xu.letter) || xu.str}`, weak: poor };
       } else if (o.op === 'ins') {
-        if (sure(H, o.y) < ms || edgeMerge(o)) continue;
+        if (edgeMerge(o)) continue;
+        low = sure(H, o.y) < ms; var conf = sure(H, o.y);
         // A stutter or a restart (the same sound again) is not a mistake.
         const prevH = H[o.y - 1], nextH = H[o.y + 1];
         if ((prevH && prevH.id === H[o.y].id) || (nextH && nextH.id === H[o.y].id)) continue;
@@ -277,6 +282,7 @@
         else e = { type: 'extra', sev: 'wrong', exp: '', got: yu.str, msg: `Extra sound: ${yu.str}`, weak: sure(H, o.y) < 0.98 };
       }
       if (!e) continue;
+      if (low) { if (e.sev === 'wrong' && e.type !== 'extra') { e.conf = conf; doubt.push(e); } continue; }
       if (level === 'words' && e.sev !== 'wrong') continue;
       if (level === 'words' && (e.type === 'haraka' || e.type === 'shadda')) continue;
       if (level === 'harakat' && e.sev === 'tajweed') continue;
@@ -285,6 +291,8 @@
     // One unlikely slip in an otherwise right word is the model, not the reader; several
     // (a different word was said) are reported.
     if (errs.length === 1 && errs[0].weak) return [];
+    const baseMs = opts.minSure == null ? 0.8 : opts.minSure;
+    if (!errs.length && (doubt.length >= (poor ? 3 : 2) || (poor && doubt.length >= 2 && doubt.some(e => e.conf >= baseMs)))) return doubt.filter(e => !(level === 'words' && (e.type === 'haraka' || e.type === 'shadda')));
     return errs;
   }
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);

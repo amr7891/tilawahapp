@@ -1011,6 +1011,7 @@ const player = {
     this.end = opts.end != null ? opts.end : state.view === 'surah' ? Q.gi(s, Q.ch(s).ayahs) : Q.all.length - 1;
     this.once = !!opts.once;
     this.left = this.once ? 1 : Number(settings.repeat) || 1;
+    if (currentReciter().timed) monoFix.prime();   // a tap: the only time a phone lets audio processing start
     this.start();
   },
 
@@ -1033,6 +1034,10 @@ const player = {
       if (t !== this.token) return;
       this.span = times[a];
       if (!this.span) { fail(); return; }
+      // A few recordings have one channel in opposite phase, which cancels the voice on a
+      // phone speaker: play those surahs from one channel.
+      this.use(await monoFix.needed(r.timed, s));
+      if (t !== this.token) return;
       const file = `${r.timed.base}${pad3(s)}.mp3`;
       const sameFile = this.audio.src.split('#')[0] === file;
       // The #t= fragment makes iPhones start at the ayah even when an early seek is ignored.
@@ -1047,6 +1052,7 @@ const player = {
       this.audio.play().catch(fail);
     } else {
       this.span = null;
+      this.use(false);
       this.audio.src = this.url(this.gi);
       this.audio.play().catch(fail);
       if (this.gi < this.end) { const n = new Audio(this.url(this.gi + 1)); n.preload = 'auto'; }
@@ -1060,6 +1066,14 @@ const player = {
     this.audio.preservesPitch = true;
   },
 
+  // Switch between the plain audio element and the one-channel one.
+  use(fixed) {
+    const el = fixed ? monoFix.element() : this.plain;
+    if (!el || el === this.audio) return;
+    switching = true; setTimeout(() => { switching = false; }, 400);
+    const old = this.audio; this.audio = el; old.pause();
+    this.applySpeed();
+  },
   pause() { this.audio.pause(); this.playing = false; media.set('paused'); paintWords(); updateControls(); },
   stop() { this.audio.pause(); this.playing = false; media.set('paused'); paintWords(); updateControls(); },
 
@@ -1104,8 +1118,55 @@ const player = {
     });
   },
 };
-player.audio.addEventListener('loadedmetadata', () => player.applySpeed());
-player.audio.addEventListener('ended', () => { if (player.playing) player.ended(); });
+player.plain = player.audio;
+// Keeps the app's state in step with the audio when it's paused or resumed from outside the app.
+let switching = false;
+function wireAudio(el) {
+  const mine = () => el === player.audio;
+  el.addEventListener('loadedmetadata', () => { if (mine()) { player.applySpeed(); media.position(); } });
+  el.addEventListener('ended', () => { if (mine() && player.playing) player.ended(); });
+  el.addEventListener('timeupdate', () => { if (mine()) checkSpan(); });
+  el.addEventListener('emptied', () => { if (mine()) { switching = true; setTimeout(() => { switching = false; }, 400); } });
+  el.addEventListener('play', () => { if (!mine()) return; media.set('playing'); if (!player.playing && player.gi >= 0) { player.playing = true; paintWords(); updateControls(); } });
+  el.addEventListener('pause', () => {
+    if (!mine() || switching || el.ended) return;
+    // Pauses the app makes itself between ayahs are followed by play straight away.
+    setTimeout(() => {
+      if (!mine()) return;
+      if (el.paused && player.playing && !el.ended) { player.playing = false; paintWords(); updateControls(); }
+      if (el.paused) media.set('paused');
+    }, 250);
+  });
+}
+// One-channel playback for recordings whose two channels cancel each other.
+const monoFix = {
+  ctx: null, el: null, phase: new Map(),
+  prime() {
+    try {
+      if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) this.ctx = new AC(); }
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    } catch (_) {}
+  },
+  element() {
+    if (this.el) return this.el;
+    if (!this.ctx) return null;
+    try {
+      const el = new Audio(); el.crossOrigin = 'anonymous'; el.preload = 'auto';
+      const src = this.ctx.createMediaElementSource(el), split = this.ctx.createChannelSplitter(2), merge = this.ctx.createChannelMerger(2);
+      src.connect(split); split.connect(merge, 0, 0); split.connect(merge, 0, 1); merge.connect(this.ctx.destination); this.out = merge;
+      wireAudio(el); this.el = el;
+    } catch (_) { return null; }
+    return this.el;
+  },
+  async needed(timed, s) {
+    if (!timed.local) return false;
+    if (!this.phase.has(timed.local)) this.phase.set(timed.local, fetchJSON(`data/timings/${timed.local}/phase.json`).catch(() => ({})));
+    const ph = await this.phase.get(timed.local);
+    if (!ph[s]) return false;
+    this.prime();
+    return !!this.element();
+  },
+};
 // Full-surah recordings: treat reaching the ayah's end time as the end of the ayah.
 // Checked on a timer and on 'timeupdate', which keeps firing when the phone is locked.
 function checkSpan() {
@@ -1122,7 +1183,7 @@ function checkSpan() {
   }
 }
 setInterval(checkSpan, 80);
-player.audio.addEventListener('timeupdate', checkSpan);
+wireAudio(player.plain);
 
 // Lock screen, Control Centre, headphones and car controls.
 const media = {
@@ -1139,19 +1200,6 @@ const media = {
     } catch (_) {}
   },
 };
-// Keep the app's state in step with the audio when it's paused or resumed from outside the app.
-let switching = false;
-player.audio.addEventListener('emptied', () => { switching = true; setTimeout(() => { switching = false; }, 400); });
-player.audio.addEventListener('play', () => { media.set('playing'); if (!player.playing && player.gi >= 0) { player.playing = true; paintWords(); updateControls(); } });
-player.audio.addEventListener('pause', () => {
-  if (switching || player.audio.ended) return;
-  // Pauses the app makes itself between ayahs are followed by play straight away.
-  setTimeout(() => {
-    if (player.audio.paused && player.playing && !player.audio.ended) { player.playing = false; paintWords(); updateControls(); }
-    if (player.audio.paused) media.set('paused');
-  }, 250);
-});
-player.audio.addEventListener('loadedmetadata', () => media.position());
 if ('mediaSession' in navigator) {
   const on = (action, fn) => { try { navigator.mediaSession.setActionHandler(action, fn); } catch (_) {} };
   on('play', () => {
