@@ -759,3 +759,4 @@ input, textarea, select { font-size: 16px; }
 .pdf-get { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
 .pdf-get .btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; color: var(--ink); min-width: 150px; }
 .pdf-get .btn.primary { color: #fff; }
+.pdf-need .pdf-hint { margin-top: 14px; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }

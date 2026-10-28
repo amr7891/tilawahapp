@@ -1397,6 +1397,7 @@ const Finder = {
   wordAt(i) { const [s, a, st] = this.ayahs[this.ayahOf[i]]; return { s, a, pos: i - st + 1 }; },
 };
 const isAndroid = /Android/i.test(navigator.userAgent);
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 const rec = {
   active: false, r: null,
@@ -2254,18 +2255,30 @@ function bookSourceUrl(b) {
 // Read a PDF the reader picked and keep it on this phone.
 async function addBookFile(file, key) {
   if (!file) return false;
-  const head = new Uint8Array(await file.slice(0, 5).arrayBuffer());
-  if (String.fromCharCode(...head) !== '%PDF-') { toast('That file isn\u2019t a PDF.', 'bad'); return false; }
+  let head = '';
+  try { head = String.fromCharCode(...new Uint8Array(await file.slice(0, 1024).arrayBuffer())); } catch (_) {}
+  if (!head.includes('%PDF-')) { toast(/\.pdf$/i.test(file.name) ? 'That PDF didn\u2019t finish downloading. Download it again, then add it.' : 'That file isn\u2019t a PDF.', 'bad'); return false; }
   try {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     await bookFiles.put(key, new Blob([await file.arrayBuffer()], { type: 'application/pdf' }));
     return true;
   } catch (_) { toast('There isn\u2019t enough space on this phone to keep that book.', 'bad'); return false; }
 }
+// One file picker kept in the page (phones, iPhones above all, ignore a picker that
+// isn't part of the page, and then nothing happens on tap).
+let pdfPickCb = null;
 function pickPdf(onFile) {
-  const inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = 'application/pdf,.pdf';
-  inp.addEventListener('change', () => { if (inp.files && inp.files[0]) onFile(inp.files[0]); });
+  let inp = document.getElementById('pdfPicker');
+  if (!inp) {
+    inp = document.createElement('input');
+    inp.type = 'file'; inp.id = 'pdfPicker'; inp.accept = 'application/pdf,.pdf';
+    inp.setAttribute('aria-hidden', 'true'); inp.tabIndex = -1;
+    inp.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;';
+    inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; const cb = pdfPickCb; pdfPickCb = null; inp.value = ''; if (f && cb) cb(f); });
+    document.body.append(inp);
+  }
+  pdfPickCb = onFile;
+  inp.value = '';
   inp.click();
 }
 async function addMyBook() {
@@ -2468,11 +2481,20 @@ const pdfReader = {
       <div class="pdf-get">
         <a class="btn" href="${esc(file.url && /^https?:/.test(file.url) ? file.url : bookSourceUrl(b))}" target="_blank" rel="noopener" download>Download the PDF</a>
         <button type="button" class="btn primary" id="pdfAdd">Add the PDF</button>
-      </div></div>`;
+      </div>
+      <p class="pdf-hint" hidden>${isIOS ? 'On iPhone: when the PDF opens, tap Share \u2192 Save to Files. Then come back here, tap Add the PDF and choose it (Browse \u2192 Downloads or On My iPhone).' : 'When the download finishes, come back here, tap Add the PDF and choose it from Downloads.'}</p></div>`;
     $('#pdfAdd').addEventListener('click', () => this.addFor(b, fi));
+    st.querySelector('.pdf-get a').addEventListener('click', () => {
+      const hint = st.querySelector('.pdf-hint'); if (hint) hint.hidden = false;
+    });
   },
   addFor(b, fi) {
-    pickPdf(async f => { if (await addBookFile(f, `${b.id}:${fi}`)) { toast('Book added. It\u2019s kept on this phone.'); this.open(b.id, fi); } });
+    pickPdf(async f => {
+      const st = $('#pdfStatus'); st.hidden = false;
+      st.innerHTML = '<span class="spinner" aria-hidden="true"></span><p>Adding the book…</p>';
+      if (await addBookFile(f, `${b.id}:${fi}`)) { toast('Book added. It\u2019s on this phone now and opens offline.'); this.open(b.id, fi); }
+      else this.need(b, fi);
+    });
   },
 
   // Lay out a placeholder for every page, sized from the first page, and draw pages as they scroll into view.
