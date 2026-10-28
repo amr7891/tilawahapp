@@ -30,7 +30,7 @@
     const onState = opts.onState || (() => {});
     const onError = opts.onError || (() => {});
     let stream = null, ctx = null, node = null, src = null, running = false, flushWait = null;
-    const units = [], pauses = new Set();
+    const units = [], pauses = new Set(), resets = new Set();
 
     const listener = m => {
       if (m.type === 'progress') onState('loading', { loaded: m.loaded, total: m.total });
@@ -38,9 +38,10 @@
       else if (m.type === 'error') onError(m.message);
       else if (m.type === 'units') {
         m.pauses.forEach(p => pauses.add(p));
+        (m.resets || []).forEach(p => resets.add(p));
         if (m.units.length) units.push(...m.units);
         if (m.silence && units.length) pauses.add(units.length);
-        onUnits(units, pauses, !!m.silence);
+        onUnits(units, pauses, !!m.silence, resets);
       } else if (m.type === 'flushed' && flushWait) { const f = flushWait; flushWait = null; f(); }
     };
 
@@ -119,9 +120,9 @@
         const wasRunning = running;
         running = false;
         this.release();
-        if (!wasRunning || !worker) { listeners.delete(listener); return Promise.resolve({ units, pauses }); }
+        if (!wasRunning || !worker) { listeners.delete(listener); return Promise.resolve({ units, pauses, resets }); }
         return new Promise(res => {
-          flushWait = () => { listeners.delete(listener); res({ units, pauses }); };
+          flushWait = () => { listeners.delete(listener); res({ units, pauses, resets }); };
           worker.postMessage({ type: 'flush' });
           setTimeout(() => { if (flushWait) { const f = flushWait; flushWait = null; f(); } }, 8000);
         });

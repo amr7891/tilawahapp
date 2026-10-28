@@ -743,3 +743,6 @@ button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -web
 .sh-head h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .sh-head a { font-size: 14px; font-weight: 600; color: var(--accent); text-decoration: none; }
 #savedBody > .note { margin: 24px 8px 0; text-align: center; color: var(--muted); line-height: 1.5; }
+
+/* iPhones zoom the page in on any text box under 16px when it is tapped (and stay zoomed). */
+input, textarea, select { font-size: 16px; }

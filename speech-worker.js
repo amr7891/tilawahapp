@@ -18,7 +18,7 @@ let prev = -1, blankRun = 0, nUnits = 0, frameNo = 0;
 const PAUSE_FRAMES = 8; // 8 × 40 ms of silence = a pause
 // After a pause the model starts afresh: carried over across a long recitation, its memory
 // made it miss the first words after a pause (they came out as "skipped").
-const RESET_FRAMES = 15; // 0.6 s of silence
+const RESET_FRAMES = 12; // 0.48 s without a new sound
 let fresh = false;
 // …warmed up on the last second heard (two steps), so the next sound isn't missed.
 const WARM_CHUNKS = 2;
@@ -35,7 +35,7 @@ async function warmStart() {
     states = next;
   }
 }
-let pending = [], pendingPauses = [];
+let pending = [], pendingPauses = [], pendingResets = [];
 
 async function fetchCached(url) {
   const res = await fetch(url);
@@ -78,7 +78,7 @@ function zeroStates() {
 function reset() {
   fb = Fbank.makeFbank({ bins: io.featureDim, highFreq: -400, snipEdges: false });
   frames = []; pos = 0; states = zeroStates();
-  prev = -1; blankRun = 0; nUnits = 0; frameNo = 0; pending = []; pendingPauses = []; fresh = false;
+  prev = -1; blankRun = 0; nUnits = 0; frameNo = 0; pending = []; pendingPauses = []; pendingResets = []; fresh = false;
 }
 
 async function runChunks() {
@@ -114,13 +114,13 @@ async function runChunks() {
         prev = k; frameNo++;
       }
       pos += shift;
-      if (blankRun >= RESET_FRAMES) { if (!fresh) { fresh = true; prev = -1; await warmStart(); } }
+      if (blankRun >= RESET_FRAMES) { if (!fresh) { fresh = true; prev = -1; pendingResets.push(nUnits); await warmStart(); } }
       else fresh = false;
       // keep memory small
       if (pos > 2000) { const keep = WARM_CHUNKS * shift; frames = frames.slice(pos - keep); pos = keep; }
-      if (pending.length || pendingPauses.length) {
-        self.postMessage({ type: 'units', units: pending, pauses: pendingPauses, silence: blankRun >= PAUSE_FRAMES });
-        pending = []; pendingPauses = [];
+      if (pending.length || pendingPauses.length || pendingResets.length) {
+        self.postMessage({ type: 'units', units: pending, pauses: pendingPauses, resets: pendingResets, silence: blankRun >= PAUSE_FRAMES });
+        pending = []; pendingPauses = []; pendingResets = [];
       } else if (blankRun === PAUSE_FRAMES) self.postMessage({ type: 'units', units: [], pauses: [], silence: true });
     }
   } finally { busy = false; }
@@ -143,8 +143,8 @@ self.onmessage = async e => {
     const pad = io.chunkFrames + io.chunkShift;
     for (const f of fb.accept(new Float32Array(160 * pad))) frames.push(f);
     await runChunks();
-    self.postMessage({ type: 'units', units: pending, pauses: pendingPauses, silence: true });
-    pending = []; pendingPauses = [];
+    self.postMessage({ type: 'units', units: pending, pauses: pendingPauses, resets: pendingResets, silence: true });
+    pending = []; pendingPauses = []; pendingResets = [];
     self.postMessage({ type: 'flushed' });
   }
 };

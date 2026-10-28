@@ -1407,7 +1407,7 @@ const rec = {
     this.expected = []; this.ids = new Set(); this.status = new Map();
     this.carried = this.fin = this.interim = '';
     this.announced = new Set(); this.curKey = ''; this.nextId = null; this.lastPos = 0;
-    this.phon = useQuranModel(); this.H = []; this.P = new Set(); this.hSkip = 0; this.errors = new Map(); this.liveSt = null;
+    this.phon = useQuranModel(); this.H = []; this.P = new Set(); this.R = new Set(); this.hSkip = 0; this.errors = new Map(); this.liveSt = null;
     this.nextPage = Q.ayahPage(s, a); this.done = false; this.feeding = null;
     this.active = true;
     updateControls();
@@ -1431,7 +1431,7 @@ const rec = {
     this.expected = []; this.ids = new Set(); this.status = new Map();
     this.carried = this.fin = this.interim = '';
     this.announced = new Set(); this.curKey = ''; this.nextId = null; this.lastPos = 0; this.done = false; this.feeding = null;
-    this.phon = useQuranModel(); this.H = []; this.P = new Set(); this.hSkip = 0; this.errors = new Map(); this.liveSt = null;
+    this.phon = useQuranModel(); this.H = []; this.P = new Set(); this.R = new Set(); this.hSkip = 0; this.errors = new Map(); this.liveSt = null;
     this.active = true;
     updateControls();
     $('#heardText').textContent = 'Start reciting from any ayah…';
@@ -1541,9 +1541,9 @@ const rec = {
 
   listenModel() {
     const eng = QuranSpeech.create({
-      onUnits: (units, pauses) => {
+      onUnits: (units, pauses, silence, resets) => {
         if (this.r !== eng || !this.active) return;
-        this.H = units; this.P = pauses;
+        this.H = units; this.P = pauses; this.R = resets;
         // On a slow phone, check only the latest of what was heard instead of falling behind
         // working through every step.
         if (this.upT) return;
@@ -1588,7 +1588,8 @@ const rec = {
     const P = []; this.P.forEach(p => { if (p >= this.hSkip) P.push(p - this.hSkip); });
     // Incremental: settled words are kept, marks show once they hold (see Tajweed.live).
     if (!this.liveSt || this.liveSt.skip !== this.hSkip) this.liveSt = { skip: this.hSkip };
-    return Tajweed.live(this.liveSt, this.expected, this.H.slice(this.hSkip), P, { final, level: settings.checkLevel || 'tajweed', minSure: { gentle: 0.92, balanced: 0.8, strict: 0.5 }[settings.strict] || 0.8 });
+    const soft = new Set(); (this.R || []).forEach(q => { if (q >= this.hSkip) soft.add(q - this.hSkip); });
+    return Tajweed.live(this.liveSt, this.expected, this.H.slice(this.hSkip), P, { soft, final, level: settings.checkLevel || 'tajweed', minSure: { gentle: 0.92, balanced: 0.8, strict: 0.5 }[settings.strict] || 0.8 });
   },
 
   transcript() { return `${this.carried} ${this.fin} ${this.interim}`; },
@@ -1641,7 +1642,7 @@ const rec = {
       if (showSummary || r.busy) {
         updateControls();
         $('#heard').classList.add('checking');
-        r.stop().then(out => { $('#heard').classList.remove('checking'); this.H = out.units; this.P = out.pauses; this.finish(showSummary); });
+        r.stop().then(out => { $('#heard').classList.remove('checking'); this.H = out.units; this.P = out.pauses; this.R = out.resets; this.finish(showSummary); });
         return;
       }
       r.abort();

@@ -554,6 +554,13 @@
         const said = cur.k / Math.max(1, cur.form.units.length);
         if (said < 1) { if (said < 0.5) break; errs = []; }
       }
+      // The listener restarted right as this word ended (a pause, or a long madd held at a
+      // stop): the end of the word may not have come through. A missing ending or a short
+      // madd there is the listener's, not the reader's.
+      if (opts.soft && errs.length) {
+        const e0 = y + cur.k;
+        if ([e0 - 1, e0, e0 + 1].some(q => opts.soft.has(q)) && errs.every(e => e.type === 'missing' || (e.type === 'madd' && /lengthen/.test(e.msg)))) errs = [];
+      }
       errors[p] = errs.length ? errs : null;
       status[p] = !errs.length ? 'ok' : errs.some(e => e.sev === 'wrong') ? 'wrong' : 'tajweed';
       y += cur.k; ends[p] = y; p++;
@@ -573,6 +580,7 @@
     opts = opts || {};
     if (st.p0 == null) Object.assign(st, { p0: 0, y0: 0, status: [], errors: [], flagged: new Map(), shown: new Map() });
     const P = new Set(); (pauses || []).forEach(q => { if (q >= st.y0) P.add(q - st.y0); });
+    if (opts.soft) { const S = new Set(); opts.soft.forEach(q => { if (q >= st.y0) S.add(q - st.y0); }); opts = Object.assign({}, opts, { soft: S }); }
     const stats = { eq: 0, unsure: 0 };
     const o = Object.assign({}, opts, { noOpener: st.p0 > 0, stats });
     if (st.room != null) o.room = st.room;
