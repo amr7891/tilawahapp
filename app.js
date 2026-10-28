@@ -42,7 +42,6 @@ const RECITERS = [
   { id: 'mp3quran-299', name: 'Hassan Saleh', arabic: 'حسن صالح', timed: { local: 'hassan-saleh', read: 299, base: MP3Q + 'hassan-saleh/r1/' } },
   { id: 'Husary_128kbps', name: 'Mahmoud Khalil Al-Husary', arabic: 'محمود خليل الحصري' },
   { id: 'MaherAlMuaiqly128kbps', name: 'Maher Al-Muaiqly', arabic: 'ماهر المعيقلي' },
-  { id: 'tl-waleed-shamsan', name: 'Al-Waleed Al-Shamsan', arabic: 'الوليد الشمسان', timed: { local: 'waleed-shamsan', base: MP3Q + 'waleed-shamsan/r1/' }, missing: [2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 18, 21, 22, 23, 27, 28, 34, 38, 39, 40, 46, 61, 69, 71, 72, 73, 74, 77, 78, 79, 80, 83, 84, 87, 88, 89, 90, 91, 92] },
   { id: 'tl-badr-turki', name: 'Badr Al-Turki', arabic: 'بدر التركي', timed: { local: 'badr-turki', base: MP3Q + 'badr-turki/r1/' } },
   { id: 'tl-muhammad-luhaidan', name: 'Muhammad Al-Luhaidan', arabic: 'محمد اللحيدان', timed: { local: 'muhammad-luhaidan', base: MP3Q + 'muhammad-luhaidan/r1/' } },
   { id: 'Alafasy_128kbps', name: 'Mishary Rashid Alafasy', arabic: 'مشاري راشد العفاسي' },
