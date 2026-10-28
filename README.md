@@ -62,7 +62,7 @@ The rules and their names follow *Tajweed Rules of the Qur'an* (Kareema Carol Cz
 
 Repeating is fine: going back over a word or phrase replaces the earlier attempt. Stutters, an opening taʿawwudh or basmala, stopping and starting anywhere, and joining ayahs are all allowed. Tap a marked word to see what was wrong. Settings → Reciting → What to check chooses all of this, letters and harakat only, or words only.
 
-When the model is unsure (it heard the expected sound as a close second choice), the word is not marked. A single swap between letters from far-apart articulation points (fa for kaf) in an otherwise right word is taken as the model mishearing and not marked; swaps between letters a reader really mixes up (same or neighbouring makhraj, heavy/light pairs such as ص/س, ط/ت, ق/ك, ح/ه) are. In tests on professional reciters about 1.4% of words were marked.
+When the model is unsure (it heard the expected sound as a close second choice), the word is not marked. A single swap between letters from far-apart articulation points (fa for kaf) in an otherwise right word is taken as the model mishearing and not marked; swaps between letters a reader really mixes up (same or neighbouring makhraj, heavy/light pairs such as ص/س, ط/ت, ق/ك, ح/ه) are. The checker also measures the room as you recite: the share of correctly read sounds the model was unsure of. In an echoey or noisy room it then only marks what it is very sure of. In tests on professional reciters about 1.2% of words were marked; with added room echo 5% (9% before the room check), with no loss in the mistakes caught on learners' recordings.
 
 **Phone's built-in recognizer** (Settings → Reciting → Recitation checking). A general Arabic recognizer that checks words only, and needs internet.
 

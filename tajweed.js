@@ -201,7 +201,10 @@
     const nextLetter = i => { const u = i + 1 < X.length ? units[X[i + 1]] : units[opts.nextUnit]; return u ? (u.letter || u.maddChar) : ''; };
     const level = opts.level || 'tajweed', tau = opts.tau == null ? 0.12 : opts.tau;
     const list = ops(X, H, y0, y1);
-    const ms = opts.minSure == null ? 0.8 : opts.minSure;
+    // In an echoey or noisy room the model is unsure of more sounds; then only report what it
+    // is very sure of, and treat a single slip in a word as doubtful.
+    const room = opts.room || 0, poor = room > (opts.roomPoor == null ? 0.08 : opts.roomPoor);
+    const ms = Math.max(opts.minSure == null ? 0.8 : opts.minSure, poor ? (room > 0.26 ? 0.95 : 0.9) : 0);
     // At a word's edges the model may hear the joining sound of two words as one unit
     // (وو + وَ heard as وووَ): a difference there in that same letter is not a mistake.
     const edgeLetter = new Set();
@@ -221,7 +224,7 @@
       const rule = o.op !== 'ins' && form.rules ? form.rules[o.x] : null;
       const atEnd = o.op !== 'ins' && o.x >= X.length - 1;
       let e = null;
-      if (o.op === 'eq') continue;
+      if (o.op === 'eq') { if (opts.stats) { opts.stats.eq++; if (sure(H, o.y) < 0.9) opts.stats.unsure++; } continue; }
       if (o.op === 'sub') {
         if (heardMaybe(H, o.y, X[o.x], tau)) continue;
         if (sure(H, o.y) < ms) continue;
@@ -246,7 +249,7 @@
           e = { type: 'letter', sev: 'wrong', exp: xu.str, got: yu.str, msg: `Expected a long vowel, heard ${yu.str}` };
         } else {
           e = { type: 'letter', sev: 'wrong', exp: xu.str, got: yu.str, msg: `Letter: ${LETTER_NAMES[xu.letter] || xu.str}, not ${LETTER_NAMES[yu.letter] || yu.str}` };
-          if (!(xu.letter && yu.letter && near(xu.letter, yu.letter)) && sure(H, o.y) < 0.98) e.weak = true;
+          if ((poor || !(xu.letter && yu.letter && near(xu.letter, yu.letter))) && sure(H, o.y) < 0.98) e.weak = true;
         }
       } else if (o.op === 'del') {
         if (heardMaybe(H, o.y, X[o.x], 0.03) || heardMaybe(H, o.y - 1, X[o.x], 0.03)) continue;
@@ -257,7 +260,7 @@
           const ok = rule && MADD_OK[rule] ? MADD_OK[rule] : [xu.madd];
           e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: '', msg: `${rule ? MADD_NAMES[rule] : 'Madd'}: lengthen for ${counts(ok)}` };
         } else if (xu.letter === 'ل' && !xu.haraka && !xu.shadda && !SUN.includes(nextLetter(o.x))) e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: 'Lām qamariyyah: pronounce the lam clearly' };
-        else e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: `Missing: ${lname(xu.letter) || xu.str}` };
+        else e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: `Missing: ${lname(xu.letter) || xu.str}`, weak: poor };
       } else if (o.op === 'ins') {
         if (sure(H, o.y) < ms || edgeMerge(o)) continue;
         // A stutter or a restart (the same sound again) is not a mistake.
@@ -338,6 +341,16 @@
   function check(words, H, pauses, opts) {
     opts = opts || {};
     const final = !!opts.final;
+    // How echoey/noisy the room is: the share of recent sounds the model was unsure of.
+    // Measured only on sounds that matched the text, so the reader's own mistakes don't count.
+    if (opts.room == null) {
+      const stats = { eq: 0, unsure: 0 };
+      const first = check(words, H, pauses, Object.assign({}, opts, { room: 0, stats }));
+      if (stats.eq < 12) return first;
+      const room = stats.unsure / stats.eq;
+      if (room <= (opts.roomPoor == null ? 0.08 : opts.roomPoor)) return Object.assign(first, { room });
+      return Object.assign(check(words, H, pauses, Object.assign({}, opts, { room })), { room });
+    }
     const status = new Array(words.length).fill(null), errors = new Array(words.length).fill(null);
     let p = 0, y = 0, afterPause = true, guard = 0;
     const W = j => (words[j] ? (words[j].free ? null : word(words[j].s, words[j].a, words[j].pos)) : null);
