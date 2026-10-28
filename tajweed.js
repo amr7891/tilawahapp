@@ -104,6 +104,9 @@
         const e = E[i];
         o.waqf = e[1] ? mk(e[1]) : null;
         o.ibt = e[2] ? mk(e[2]) : null;
+        // A word whose first sound was joined to the previous word (idgham across words)
+        // still has its own full start, for when you restart from it.
+        if (!o.ibt && i > 0) { const own = mk(e[0]); if (own.length && own.join() !== o.wasl.join()) o.ibt = own; }
         o.last = i === E.length - 1;
         if (!o.wasl.length) { o.wasl = mk(e[0]); o.rules = o.wasl.map(() => null); }
       });
@@ -219,6 +222,10 @@
       // Same letter, same doubling, only the haraka differs: that's a real haraka mistake.
       if (o.op === 'sub') { const v = units[H[o.y].id]; if (v && v.letter === u.letter && v.shadda === u.shadda && v.haraka !== u.haraka && !u.madd) return false; }
       const l = u.letter || u.maddChar;
+      // A sound at the very start or end of a word that repeats the letter heard just across
+      // the boundary is the join of the two words (idgham, a doubled letter), not an extra.
+      const nb = o.op === 'ins' ? (o.x === 0 ? H[o.y - 1] : o.x >= X.length ? H[o.y + 1] : null) : null;
+      if (nb && units[nb.id] && (units[nb.id].letter || units[nb.id].maddChar) === l) return true;
       return edgeLetter.has(l) && (l === 'و' || l === 'ي' || l === 'ۥ' || l === 'ۦ' || u.shadda || (o.op !== 'sub' && (H[o.y - 1] && units[H[o.y - 1].id] && units[H[o.y - 1].id].letter === l || H[o.y + 1] && units[H[o.y + 1].id] && units[H[o.y + 1].id].letter === l)));
     };
     const doubt = [];   // differences the model was unsure of: one is noise, several are a mistake
