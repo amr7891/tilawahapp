@@ -277,7 +277,7 @@
           const ok = rule && MADD_OK[rule] ? MADD_OK[rule] : [xu.madd];
           e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: '', msg: `${rule ? MADD_NAMES[rule] : 'Madd'}: lengthen for ${counts(ok)}` };
         } else if (xu.letter === 'ل' && !xu.haraka && !xu.shadda && !SUN.includes(nextLetter(o.x))) e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: 'Lām qamariyyah: pronounce the lam clearly' };
-        else e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: `Missing: ${lname(xu.letter) || xu.str}`, weak: poor };
+        else e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: `Missing: ${lname(xu.letter) || xu.str}`, weak: poor && conf < 0.97 };
       } else if (o.op === 'ins') {
         if (edgeMerge(o)) continue;
         low = sure(H, o.y) < ms; var conf = sure(H, o.y);
