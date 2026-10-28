@@ -508,25 +508,42 @@
   }
   function find(H) {
     if (H.length < 8) return null;
-    const { at, tri } = buildIndex();
+    const { seq, at, tri } = buildIndex();
     const votes = new Map();
     for (let i = 0; i + 2 < H.length; i++) {
       const l = tri.get(H[i].id * 65536 + H[i + 1].id * 256 + H[i + 2].id);
       if (!l || l.length > 40) continue;
       l.forEach(q => { const st = q - i; votes.set(st, (votes.get(st) || 0) + 1); });
     }
-    let best = null, bn = 0, second = 0;
-    votes.forEach((n, st) => { if (n > bn) { second = bn; bn = n; best = st; } else if (n > second) second = n; });
-    if (best === null || bn < 3) return null;
-    let near = 0; votes.forEach((n, st) => { if (st !== best && Math.abs(st - best) <= 4) near = Math.max(near, n); });
-    if (near === second) second = 0;
-    if (bn - second < 2) return null;
+    // Candidate places (nearby offsets merged), strongest first.
+    const cands = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+    const places = [];
+    for (const [st, n] of cands) {
+      const p = places.find(x => Math.abs(x.st - st) <= 4);
+      if (p) p.n += n; else if (places.length < 6) places.push({ st, n });
+    }
+    if (!places.length) return null;
+    let best = places[0];
+    const second = places[1] ? places[1].n : 0;
+    if (!(best.n >= 3 && best.n - second >= 2)) {
+      // Not clear from the votes (a reader's slips break up the sound patterns): compare
+      // what was heard with the text at each candidate, sound by sound.
+      const L = Math.min(H.length, 40), Hs = H.slice(-L);
+      const scored = places.filter(p => p.n >= 2).map(p => {
+        const from = Math.max(0, p.st + H.length - L - 3), X = seq.slice(from, from + L + 6);
+        let bestD = Infinity;
+        for (let k = Math.max(1, L - 6); k <= L + 6 && k <= X.length; k++) bestD = Math.min(bestD, distance(X.slice(0, k), Hs, 0, L) / L);
+        return { p, d: bestD };
+      }).sort((a, b) => a.d - b.d);
+      if (!scored.length || scored[0].d > 0.35 || (scored[1] && scored[1].d - scored[0].d < 0.15 && Math.abs(scored[1].p.st - scored[0].p.st) > 4) || H.length < 12) return null;
+      best = scored[0].p;
+    }
     // Start at the first whole word heard.
-    let k = Math.max(0, -best);
-    while (best + k < at.length && best + k > 0 && at[best + k - 1] === at[best + k]) k++;
-    if (best + k >= at.length || k >= H.length) return null;
-    const [s, a, pos] = at[best + k];
-    return { s, a, pos, skip: k, score: bn };
+    let k = Math.max(0, -best.st);
+    while (best.st + k < at.length && best.st + k > 0 && at[best.st + k - 1] === at[best.st + k]) k++;
+    if (best.st + k >= at.length || k >= H.length) return null;
+    const [s, a, pos] = at[best.st + k];
+    return { s, a, pos, skip: k, score: best.n };
   }
 
   const api = { init, tokenize, word, check, live, find, units: () => units, get blank() { return blank; } };
