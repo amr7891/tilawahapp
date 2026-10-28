@@ -43,6 +43,9 @@ const RECITERS = [
   { id: 'mp3quran-299', name: 'Hassan Saleh', arabic: 'حسن صالح', timed: { read: 299, base: MP3Q + 'hassan-saleh/r1/' } },
   { id: 'Husary_128kbps', name: 'Mahmoud Khalil Al-Husary', arabic: 'محمود خليل الحصري' },
   { id: 'MaherAlMuaiqly128kbps', name: 'Maher Al-Muaiqly', arabic: 'ماهر المعيقلي' },
+  { id: 'tl-waleed-shamsan', name: 'Al-Waleed Al-Shamsan', arabic: 'الوليد الشمسان', timed: { local: 'waleed-shamsan', base: MP3Q + 'waleed-shamsan/r1/' }, missing: [2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 18, 21, 22, 23, 27, 28, 34, 38, 39, 40, 46, 61, 69, 71, 72, 73, 74, 77, 78, 79, 80, 83, 84, 87, 88, 89, 90, 91, 92] },
+  { id: 'tl-badr-turki', name: 'Badr Al-Turki', arabic: 'بدر التركي', timed: { local: 'badr-turki', base: MP3Q + 'badr-turki/r1/' } },
+  { id: 'tl-muhammad-luhaidan', name: 'Muhammad Al-Luhaidan', arabic: 'محمد اللحيدان', timed: { local: 'muhammad-luhaidan', base: MP3Q + 'muhammad-luhaidan/r1/' } },
   { id: 'Alafasy_128kbps', name: 'Mishary Rashid Alafasy', arabic: 'مشاري راشد العفاسي' },
   { id: 'Muhammad_Ayyoub_128kbps', name: 'Muhammad Ayyub', arabic: 'محمد أيوب' },
   { id: 'mp3quran-340', name: 'Muhammad Barhaji', arabic: 'محمد برهجي', timed: { read: 340, base: MP3Q + 'muhammad-burhaji/r1/' } },
@@ -164,6 +167,7 @@ const KAABA = { lat: 21.422487, lon: 39.826206 };
 /* ------------------------------------------------------------------ */
 
 const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const store = {
   get(k, d) { try { const v = localStorage.getItem('tl:' + k); return v ? JSON.parse(v) : d; } catch (_) { return d; } },
   set(k, v) { try { localStorage.setItem('tl:' + k, JSON.stringify(v)); } catch (_) { /* storage unavailable */ } },
@@ -328,7 +332,7 @@ const Q = {
 const settings = Object.assign({
   reciter: 'Muhammad_Ayyoub_128kbps', repeat: 1, fontSize: 30, translation: false, tafsir: false,
   autoNext: true, hide: false, listenRepeat: false, speed: 1, mistakePopups: true, mushaf: 'madinah', readMode: 'mushaf',
-  engine: 'quran', checkLevel: 'tajweed', tajweed: true,
+  engine: 'quran', checkLevel: 'tajweed', tajweed: true, strict: 'balanced', mushafZoom: 1,
 }, store.get('settings', {}));
 if (!RECITERS.some(r => r.id === settings.reciter)) settings.reciter = 'Muhammad_Ayyoub_128kbps';
 settings.mushaf = 'madinah';
@@ -488,7 +492,7 @@ function follow(s, a) {
 function showView(name) {
   if (state.view !== name) { player.stop(); rec.stop(false); }
   state.view = name;
-  ['list', 'surah', 'library', 'qibla'].forEach(v => { $('#view-' + v).hidden = v !== name; });
+  ['list', 'surah', 'library', 'qibla', 'saved'].forEach(v => { $('#view-' + v).hidden = v !== name; });
   $('#reader').hidden = name !== 'mushaf';
   $('#pdfReader').hidden = name !== 'pdf';
   if (name !== 'pdf') pdfReader.close();
@@ -499,7 +503,8 @@ function showView(name) {
   const tab = ['surah', 'list', 'mushaf'].includes(name) ? 'quran' : name === 'pdf' ? 'library' : name;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   if (name !== 'mushaf' && name !== 'surah') resetWordEls();
-  if (name === 'list') { setTitle('Quran', 'Madinah Mushaf · 114 surahs'); renderContinue(); install.card(); }
+  if (name === 'list') { setTitle('Quran', 'Madinah Mushaf · 114 surahs'); renderContinue(); renderSavedHome(); install.card(); }
+  if (name === 'saved') { setTitle('Saved', 'Bookmarks, highlights and notes'); saved.render(); }
   if (name === 'qibla') { setTitle('Qibla', 'Direction of the Kaaba'); qibla.init(); }
   updateControls();
 }
@@ -523,7 +528,8 @@ async function route() {
   if (h === 'mushaf') { openMushaf(store.get('mushafPage', 1)); return; }
   if ((m = h.match(/^hadith-([a-z0-9_]+)(?:-(\d+)(?:-(\d+))?)?$/))) { openLibrary(m[1], m[2] ? +m[2] : null, m[3] ? +m[3] : null); return; }
   if ((m = h.match(/^book-([a-z0-9-]+)$/))) { openBook(m[1]); return; }
-  if ((m = h.match(/^read-([a-z0-9-]+)-(\d+)$/))) { pdfReader.open(m[1], +m[2]); return; }
+  if ((m = h.match(/^read-([a-z0-9-]+?)-(\d+)(?:-p(\d+))?(?:-n(\d+))?$/))) { pdfReader.open(m[1], +m[2], { page: m[3] ? +m[3] : null, note: m[4] ? +m[4] : null }); return; }
+  if (h === 'saved') { showView('saved'); scrollTop(); return; }
   if (h === 'library') { openLibrary(); scrollTop(); return; }
   if (h === 'qibla') showView('qibla');
   else showView('list');
@@ -539,7 +545,7 @@ async function initList() {
   catch (_) { $('#surahList').innerHTML = '<li class="empty">Could not load the Quran data. Reload the page to try again.</li>'; return; }
   Q.font('B').then(renderSurahList).catch(() => {});
   renderSurahList();
-  renderContinue();
+  renderContinue(); renderSavedHome();
 }
 
 function surahNameGlyph(n) { return String.fromCodePoint(0xF100 + n - 1); }
@@ -589,6 +595,20 @@ function openMushaf(p) {
     .catch(() => { const st = $('#pageStatus'); st.hidden = false; st.textContent = 'Could not load the Quran data. Reload the page to try again.'; });
 }
 
+// Mushaf size: 1 = the printed page; larger sizes reflow the words into more lines.
+function setMushafZoom(z, quiet) {
+  z = Math.round(Math.min(3, Math.max(1, z)) * 4) / 4;
+  if (z === (Number(settings.mushafZoom) || 1)) return;
+  const wasZoomed = (Number(settings.mushafZoom) || 1) > 1.01;
+  settings.mushafZoom = z; saveSettings();
+  if ($('#setZoom')) $('#setZoom').value = z;
+  if (state.view !== 'mushaf') return;
+  const pg = $('#pageStage .mpage');
+  if (pg && wasZoomed === z > 1.01) Q.page(mushaf.page).then(d => mushaf.fit(pg, d));
+  else mushaf.show(mushaf.page);
+  if (!quiet) { let h = $('#zoomHint'); if (!h) { h = document.createElement('div'); h.id = 'zoomHint'; h.className = 'zoom-hint'; document.body.append(h); } h.textContent = z === 1 ? 'Full page' : Math.round(z * 100) + '%'; h.hidden = false; clearTimeout(h.t); h.t = setTimeout(() => { h.hidden = true; }, 900); }
+}
+
 const mushaf = {
   page: 1, token: 0, chrome: true,
 
@@ -615,6 +635,7 @@ const mushaf = {
     if ($('#pageStage').classList.contains('scroll') && !this.keepScroll) $('#pageStage').scrollTop = 0;
     store.set('mushafPage', p);
     this.updateBars(d);
+    if (pendingSelect) { const k = pendingSelect; pendingSelect = null; if (d.words.some(w => `${w.s}:${w.a}` === k)) this.select(k); }
     [p + 1, p - 1, p + 2].forEach(n => { if (n >= 1 && n <= 604) Q.pageReady(n).catch(() => {}); });
   },
 
@@ -623,7 +644,9 @@ const mushaf = {
     const old = stage.querySelector('.mpage');
     resetWordEls();
     const page = document.createElement('div');
-    page.className = 'mpage' + (d.p <= 2 ? ' opening' : '');
+    // Zoomed in: the page's words flow into more, shorter lines at a larger size.
+    const zoomed = (Number(settings.mushafZoom) || 1) > 1.01;
+    page.className = 'mpage' + (d.p <= 2 ? ' opening' : '') + (zoomed ? ' reflow' : '');
     page.dir = 'rtl';
     const surahs = Q.surahsOnPage(d.p);
     const juz = Q.juzOfPage(d.p);
@@ -639,6 +662,7 @@ const mushaf = {
       const row = document.createElement('div');
       const kind = line.length && line[0].t === 'h' ? 'hl' : line.length && line[0].t === 'b' ? 'bl' : 'tl';
       row.className = 'mline ' + kind;
+      if (zoomed && kind === 'tl' && !line.length) return;
       line.forEach(x => {
         const sp = document.createElement('span');
         sp.textContent = x.g;
@@ -648,7 +672,9 @@ const mushaf = {
         else if (x.t === 'b') { const svg = Q.bismSVG(x); if (svg) { row.append(svg); return; } }
         else if (x.t === 'h') { sp.className = 'sh'; const fr = document.createElement('span'); fr.className = 'sh-frame'; fr.append(sp); row.append(fr); return; }
         row.append(sp);
+        if (zoomed && kind === 'tl') row.append(' ');
       });
+      if (zoomed && kind === 'tl') row.append(' ');
       body.append(row);
     });
     if (old) old.remove();
@@ -667,25 +693,36 @@ const mushaf = {
     const ratio = 0.66;
     // Phones held sideways: the page fills the width and scrolls, like a printed page held close.
     const sideways = stage.clientWidth > stage.clientHeight * 1.05 && stage.clientHeight < 700;
-    stage.classList.toggle('scroll', sideways);
+    const zoom = Number(settings.mushafZoom) || 1;
+    const reflow = page.classList.contains('reflow');
+    stage.classList.toggle('scroll', sideways || reflow);
     let pw, ph;
-    if (sideways) { pw = Math.floor(Math.min(w, 720)); ph = Math.floor(pw / ratio); }
+    if (sideways || reflow) { pw = Math.floor(Math.min(w, sideways ? 720 : 760)); ph = Math.floor(pw / ratio); }
     else { pw = Math.floor(Math.min(w, h * ratio)); ph = Math.floor(Math.min(h, pw / ratio)); }
     page.style.width = pw + 'px';
     page.style.height = ph + 'px';
     const body = page.querySelector('.mbody');
     const lineH = body.clientHeight / 15;
     body.style.setProperty('--line-h', lineH + 'px');
-    // Measure natural line widths at a test size.
+    // Measure natural line widths at a test size (as a printed page).
+    if (reflow) page.classList.remove('reflow');
     body.style.fontSize = '100px';
     body.classList.add('measuring');
     let max = 0;
     body.querySelectorAll('.mline.tl').forEach(l => { max = Math.max(max, l.scrollWidth); });
     body.classList.remove('measuring');
+    if (reflow) page.classList.add('reflow');
     const inner = body.clientWidth;
     let fs = max ? 97 * inner / max : lineH * 0.6;
     if (d.p <= 2) fs = Math.min(fs, lineH * 0.62);
     fs = Math.min(fs, lineH * 0.78);
+    if (reflow) {
+      // Same type as the printed page, scaled up; the page grows as tall as it needs.
+      body.style.fontSize = (fs * zoom).toFixed(2) + 'px';
+      body.style.setProperty('--line-h', (lineH * zoom).toFixed(1) + 'px');
+      page.style.height = 'auto';
+      return;
+    }
     body.style.fontSize = fs.toFixed(2) + 'px';
     // Lines much shorter than the page (rare) are centred instead of stretched.
     body.querySelectorAll('.mline.tl').forEach(l => {
@@ -727,6 +764,9 @@ const mushaf = {
     const marked = ayahMarks().some(m => m.s === s && m.a === a);
     $('#ayahMark').classList.toggle('on', marked);
     $('#ayahMark span').textContent = marked ? 'Saved' : 'Bookmark';
+    const noted = !!notes.ayah()[state.selected];
+    $('#ayahNote').classList.toggle('on', noted);
+    $('#ayahNote span').textContent = noted ? 'Note ✓' : 'Note';
     const hl = highlights()[state.selected] || '';
     document.querySelectorAll('#ayahBar [data-hl]').forEach(b => b.classList.toggle('active', b.dataset.hl === hl && !!hl));
   },
@@ -984,12 +1024,17 @@ const player = {
       if (t !== this.token) return;
       this.span = times[a];
       if (!this.span) { fail(); return; }
-      const src = `${r.timed.base}${pad3(s)}.mp3`;
-      const sameFile = this.audio.src === src;
-      if (!sameFile) this.audio.src = src;
-      const seek = () => { if (Math.abs(this.audio.currentTime - this.span[0]) > 0.35) this.audio.currentTime = this.span[0]; };
+      const file = `${r.timed.base}${pad3(s)}.mp3`;
+      const sameFile = this.audio.src.split('#')[0] === file;
+      // The #t= fragment makes iPhones start at the ayah even when an early seek is ignored.
+      if (!sameFile) this.audio.src = `${file}#t=${this.span[0].toFixed(2)}`;
+      const seek = () => {
+        if (t !== this.token || !this.span) return;
+        if (Math.abs(this.audio.currentTime - this.span[0]) > 0.35) { try { this.audio.currentTime = this.span[0]; } catch (_) {} }
+      };
       if (sameFile && this.audio.readyState >= 1) seek();
-      else this.audio.addEventListener('loadedmetadata', seek, { once: true });
+      else { this.audio.addEventListener('loadedmetadata', seek, { once: true }); this.audio.addEventListener('canplay', seek, { once: true }); }
+      this.audio.addEventListener('playing', seek, { once: true });
       this.audio.play().catch(fail);
     } else {
       this.span = null;
@@ -1056,6 +1101,11 @@ player.audio.addEventListener('ended', () => { if (player.playing) player.ended(
 // Checked on a timer and on 'timeupdate', which keeps firing when the phone is locked.
 function checkSpan() {
   const p = player;
+  // Started somewhere else in the surah file (a seek the browser ignored): go to the ayah.
+  if (p.playing && p.span && !p.audio.paused && p.audio.readyState >= 1 && (p.audio.currentTime < p.span[0] - 1 || p.audio.currentTime > p.span[1] + 2)) {
+    try { p.audio.currentTime = p.span[0]; } catch (_) {}
+    return;
+  }
   if (p.playing && p.span && !p.audio.paused && p.audio.currentTime >= p.span[1] - 0.05) {
     const sameSurahNext = !p.once && p.left <= 1 && !settings.listenRepeat && settings.autoNext && p.gi < p.end && Q.all[p.gi + 1][0] === Q.all[p.gi][0];
     if (!sameSurahNext) p.audio.pause();
@@ -1365,7 +1415,7 @@ const rec = {
   },
   checkPh(final) {
     const P = new Set(); this.P.forEach(p => { if (p >= this.hSkip) P.add(p - this.hSkip); });
-    return Tajweed.check(this.expected, this.H.slice(this.hSkip), P, { final, level: settings.checkLevel || 'tajweed' });
+    return Tajweed.check(this.expected, this.H.slice(this.hSkip), P, { final, level: settings.checkLevel || 'tajweed', minSure: { gentle: 0.92, balanced: 0.8, strict: 0.5 }[settings.strict] || 0.8 });
   },
 
   transcript() { return `${this.carried} ${this.fin} ${this.interim}`; },
@@ -1559,6 +1609,137 @@ function setReciter(id) {
   toast(`Reciter: ${reciterName()}`);
 }
 $('#reciterList').addEventListener('change', e => { if (e.target.name === 'reciter') { setReciter(e.target.value); $('#reciterSheet').close(); } });
+
+
+/* ------------------------------------------------------------------ */
+/*  Notes, and the Saved screen (bookmarks, highlights, notes)         */
+/* ------------------------------------------------------------------ */
+
+// Ayah notes {"s:a": {text, t}}; book notes per PDF file [{id, page, text, quote, hl, color, t}].
+const notes = {
+  ayah() { return store.get('ayahNotes', {}); },
+  setAyah(key, text) {
+    const all = this.ayah();
+    if (text && text.trim()) all[key] = { text: text.trim(), t: Date.now() }; else delete all[key];
+    store.set('ayahNotes', all);
+  },
+  pdf(key) { return store.get('pdfNotes:' + key, []); },
+  savePdf(key, list) { store.set('pdfNotes:' + key, list); },
+};
+
+// One note editor for everything.
+const noteEditor = {
+  cb: null,
+  open({ title, quote, text, onSave, onDelete }) {
+    $('#noteTitle').textContent = title || 'Note';
+    $('#noteQuote').hidden = !quote; $('#noteQuote').textContent = quote || '';
+    $('#noteText').value = text || '';
+    $('#noteDelete').hidden = !onDelete;
+    this.cb = { onSave, onDelete };
+    $('#noteSheet').showModal();
+    setTimeout(() => $('#noteText').focus(), 50);
+  },
+};
+$('#noteForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const cb = noteEditor.cb; noteEditor.cb = null;
+  $('#noteSheet').close();
+  if (cb && cb.onSave) cb.onSave($('#noteText').value);
+});
+$('#noteDelete').addEventListener('click', () => {
+  const cb = noteEditor.cb; noteEditor.cb = null;
+  $('#noteSheet').close();
+  if (cb && cb.onDelete) cb.onDelete();
+});
+
+function editAyahNote(s, a) {
+  const key = `${s}:${a}`, cur = notes.ayah()[key];
+  noteEditor.open({
+    title: `Note on ${Q.ch(s).en} ${key}`, text: cur ? cur.text : '',
+    onSave: t => { notes.setAyah(key, t); toast(t.trim() ? 'Note saved.' : 'Note removed.'); mushaf.syncAyahBar(); },
+    onDelete: cur ? () => { notes.setAyah(key, ''); toast('Note removed.'); mushaf.syncAyahBar(); } : null,
+  });
+}
+
+// Everything saved on this phone, newest first.
+function savedItems() {
+  const items = [];
+  const book = id => { const f = findBook(id); return f ? f.b : null; };
+  bookmarks().forEach(b => { const c = Q.meta ? Q.surahsOnPage(b.p)[0] : null; items.push({ kind: 'page', t: b.t || 0, href: `#page-${b.p}`, title: `Page ${b.p}`, sub: c ? `${c.en} · Juz ${Q.juzOfPage(b.p)}` : '', group: 'Mushaf pages' }); });
+  ayahMarks().forEach(m => items.push({ kind: 'ayah', t: m.t || 0, href: `#page-${Q.ayahPage(m.s, m.a)}`, sel: `${m.s}:${m.a}`, title: `${Q.ch(m.s).en} ${m.s}:${m.a}`, sub: 'Bookmarked ayah', group: 'Ayahs' }));
+  Object.entries(highlights()).forEach(([k, color]) => { const [s, a] = k.split(':').map(Number); items.push({ kind: 'hl', t: 0, color, href: `#page-${Q.ayahPage(s, a)}`, sel: k, title: `${Q.ch(s).en} ${k}`, sub: 'Highlighted ayah', group: 'Ayahs' }); });
+  Object.entries(notes.ayah()).forEach(([k, n]) => { const [s, a] = k.split(':').map(Number); items.push({ kind: 'anote', note: true, t: n.t, href: `#page-${Q.ayahPage(s, a)}`, sel: k, title: `${Q.ch(s).en} ${k}`, sub: n.text, group: 'Quran' }); });
+  for (let i = 0; i < localStorage.length; i++) {
+    const lk = localStorage.key(i) || '';
+    const m = lk.match(/^tl:(pdfMarks|pdfHl|pdfNotes):(.+):(\d+)$/);
+    if (!m) continue;
+    const [, type, id, fi] = m, b = book(id);
+    if (!b) continue;
+    const name = b.title + (b.files.length > 1 ? ` · ${b.files[+fi].label}` : '');
+    const list = store.get(`${type}:${id}:${fi}`, []);
+    if (type === 'pdfMarks') list.forEach(n => items.push({ kind: 'bpage', t: 0, href: `#read-${id}-${fi}-p${n}`, title: `Page ${n}`, sub: name, group: name }));
+    if (type === 'pdfHl') list.forEach(h => items.push({ kind: 'bhl', t: h.t || 0, color: h.color, href: `#read-${id}-${fi}-p${h.page}`, title: `Page ${h.page}`, sub: h.text || 'Highlight', book: name, group: name }));
+    if (type === 'pdfNotes') list.forEach(n => items.push({ kind: 'bnote', note: true, t: n.t || 0, color: n.color, href: `#read-${id}-${fi}-p${n.page}-n${n.id}`, title: `Page ${n.page}`, sub: n.text, quote: n.quote, book: name, group: name }));
+  }
+  return items.sort((x, y) => y.t - x.t);
+}
+
+const ICONS = {
+  page: '<path d="M6 4h12v17l-6-4-6 4z"/>',
+  ayah: '<path d="M6 4h12v17l-6-4-6 4z"/>',
+  bpage: '<path d="M6 4h12v17l-6-4-6 4z"/>',
+  hl: '<path d="M4 20h16M7 16l9-9 3 3-9 9H7z"/>',
+  bhl: '<path d="M4 20h16M7 16l9-9 3 3-9 9H7z"/>',
+  anote: '<path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/>',
+  bnote: '<path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/>',
+};
+function savedRow(it, inGroup) {
+  return `<li><a class="saved-row" href="${it.href}"${it.sel ? ` data-select="${it.sel}"` : ''}>
+    <span class="sr-icon k-${it.kind}${it.color ? ' c-' + it.color : ''}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[it.kind]}</svg></span>
+    <span class="sr-text"><b>${esc(it.title)}${it.book && !inGroup ? ` <em>${esc(it.book)}</em>` : ''}</b>${it.quote ? `<q>${esc(it.quote)}</q>` : ''}<span>${esc(it.sub || '')}</span></span>
+  </a></li>`;
+}
+
+const saved = {
+  tab: 'marks',
+  render() {
+    $$('[data-saved-tab]').forEach(b => b.classList.toggle('active', b.dataset.savedTab === this.tab));
+    const q = ($('#savedSearch').value || '').trim().toLowerCase();
+    let items = savedItems().filter(it => (this.tab === 'notes') === !!it.note);
+    if (q) items = items.filter(it => [it.title, it.sub, it.book, it.quote].join(' ').toLowerCase().includes(q));
+    if (!items.length) {
+      $('#savedBody').innerHTML = `<p class="note">${q ? 'Nothing matches your search.' : this.tab === 'notes'
+        ? 'No notes yet. Select an ayah and tap Note, or in a book tap the note icon or select some text and tap Add note.'
+        : 'Nothing saved yet. Bookmark or highlight ayahs and pages in the mushaf, or bookmark and highlight pages in the books.'}</p>`;
+      return;
+    }
+    // Group: Quran first, then each book.
+    const groups = new Map();
+    items.forEach(it => { if (!groups.has(it.group)) groups.set(it.group, []); groups.get(it.group).push(it); });
+    const order = ['Quran', 'Ayahs', 'Mushaf pages'];
+    const keys = [...groups.keys()].sort((a, b) => (order.indexOf(a) < 0 ? 9 : order.indexOf(a)) - (order.indexOf(b) < 0 ? 9 : order.indexOf(b)) || a.localeCompare(b));
+    $('#savedBody').innerHTML = keys.map(k => `<h3 class="goto-h">${esc(k)}</h3><ul class="saved-list">${groups.get(k).map(it => savedRow(it, true)).join('')}</ul>`).join('');
+  },
+};
+$$('[data-saved-tab]').forEach(b => b.addEventListener('click', () => { saved.tab = b.dataset.savedTab; saved.render(); }));
+$('#savedSearch').addEventListener('input', () => saved.render());
+// Opening a saved ayah selects it on its page.
+document.addEventListener('click', e => {
+  const a = e.target.closest('a.saved-row[data-select]');
+  if (a) pendingSelect = a.dataset.select;
+});
+let pendingSelect = null;
+
+// Home screen: the latest bookmarks and notes, with a link to all of them.
+function renderSavedHome() {
+  const box = $('#savedHome');
+  if (!box) return;
+  const items = Q.meta ? savedItems() : [];
+  if (!items.length) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<div class="sh-head"><h2>Your bookmarks and notes</h2><a href="#saved">See all</a></div>
+    <ul class="saved-list">${items.slice(0, 5).map(it => savedRow(it)).join('')}</ul>`;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Controls                                                           */
@@ -1901,7 +2082,7 @@ function localBookPath(url) {
 const pdfReader = {
   doc: null, task: null, id: null, fi: 0, zoom: 1, page: 1, token: 0, observer: null, rendered: new Map(),
 
-  async open(id, fi) {
+  async open(id, fi, opts = {}) {
     const found = findBook(id);
     if (!found || !found.b.files[fi]) { location.hash = 'library'; return; }
     const { b } = found;
@@ -1952,7 +2133,9 @@ const pdfReader = {
     $('#pdfPageNum').max = doc.numPages;
     await this.layout();
     const saved = store.get(`pdfPos:${id}:${fi}`, 1);
-    this.goTo(Math.min(saved, doc.numPages), 'auto');
+    const target = Math.min(opts.page || saved, doc.numPages);
+    this.goTo(target, 'auto');
+    if (opts.page) setTimeout(() => this.flash(target, opts.note), 700);
   },
 
   fail(file) {
@@ -2040,6 +2223,19 @@ const pdfReader = {
     const layer = box.querySelector('.hlLayer');
     if (!layer) return;
     layer.innerHTML = '';
+    // Note markers: next to their highlight, or down the page's edge.
+    box.querySelectorAll('.pnote').forEach(x => x.remove());
+    const hls = this.hls();
+    this.notes().filter(x => x.page === n).forEach((x, i) => {
+      const h = x.hl && hls.find(y => y.id === x.hl);
+      const r = h && h.rects[0];
+      const m = document.createElement('button');
+      m.type = 'button'; m.className = 'pnote'; m.dataset.note = x.id;
+      m.setAttribute('aria-label', 'Open note: ' + x.text.slice(0, 60));
+      m.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/></svg>';
+      m.style.top = r ? `calc(${r[1] * 100}% - 6px)` : `${4 + i * 7}%`;
+      box.append(m);
+    });
     this.hls().filter(h => h.page === n).forEach(h => h.rects.forEach(([x, y, w, ht]) => {
       const d = document.createElement('div');
       d.className = 'phl phl-' + h.color;
@@ -2054,7 +2250,7 @@ const pdfReader = {
   },
 
   // Save the current text selection as a highlight on its page.
-  highlightSelection(color) {
+  highlightSelection(color, withNote) {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !sel.rangeCount) return;
     const range = sel.getRangeAt(0);
@@ -2071,12 +2267,41 @@ const pdfReader = {
     if (!byPage.size) return;
     const list = this.hls();
     const text = sel.toString().replace(/\s+/g, ' ').trim().slice(0, 300);
-    byPage.forEach((rects, page) => list.push({ page, rects, color, text, t: Date.now() }));
+    const made = [];
+    byPage.forEach((rects, page) => { const h = { id: Date.now() + made.length, page, rects, color, text, t: Date.now() }; list.push(h); made.push(h); });
     store.set('pdfHl:' + this.key(), list);
     byPage.forEach((_, page) => this.repaint(page));
     sel.removeAllRanges();
     $('#pdfHlBar').hidden = true;
-    toast('Highlighted.');
+    if (withNote) this.editNote(null, { page: made[0].page, quote: text, hl: made[0].id, color });
+    else toast('Highlighted.');
+  },
+
+  // Notes on this book: on a page, or on a highlighted passage.
+  notes() { return notes.pdf(this.key()); },
+  editNote(id, fresh) {
+    const list = this.notes();
+    const n = id != null ? list.find(x => x.id === id) : null;
+    const page = n ? n.page : fresh.page;
+    noteEditor.open({
+      title: `Note · page ${page}`, quote: n ? n.quote : fresh.quote, text: n ? n.text : '',
+      onSave: text => {
+        const all = this.notes();
+        if (!text.trim()) { if (n) { this.savePdfNotes(all.filter(x => x.id !== n.id)); toast('Note removed.'); } this.repaint(page); return; }
+        if (n) { const x = all.find(y => y.id === n.id); if (x) { x.text = text.trim(); x.t = Date.now(); } }
+        else all.push({ id: Date.now(), page, text: text.trim(), quote: fresh.quote || '', hl: fresh.hl || null, color: fresh.color || null, t: Date.now() });
+        this.savePdfNotes(all); this.repaint(page); toast('Note saved.');
+      },
+      onDelete: n ? () => { this.savePdfNotes(this.notes().filter(x => x.id !== n.id)); this.repaint(page); toast('Note removed.'); } : null,
+    });
+  },
+  savePdfNotes(list) { notes.savePdf(this.key(), list); },
+  // Opened from Saved: show the page's annotation.
+  flash(page, noteId) {
+    const box = $('#pdfPages').children[page - 1];
+    if (!box) return;
+    box.classList.add('flash'); setTimeout(() => box.classList.remove('flash'), 1600);
+    if (noteId != null) { const n = this.notes().find(x => x.id === noteId); if (n) this.editNote(n.id); }
   },
 
   toggleMark() {
@@ -2102,7 +2327,9 @@ const pdfReader = {
       + (hls.length ? `<h3 class="goto-h">Highlights</h3><ul class="mistakes">${hls.map((h, i) => `<li class="hl-item">
           <button type="button" class="bm" data-pdf-page="${h.page}"><b><i class="dot hl-dot-${h.color}"></i>Page ${h.page}</b><span class="hl-snip">${esc(h.text || '')}</span></button>
           <button type="button" class="icon-btn" data-pdf-del="${i}" aria-label="Delete highlight"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li>`).join('')}</ul>` : '')
-      || '<p class="note left">No bookmarks or highlights yet. Tap the bookmark icon to save a page, or select some text on a page to highlight it.</p>';
+      + (this.notes().length ? `<h3 class="goto-h">Notes</h3><ul class="mistakes">${this.notes().slice().sort((a, b) => a.page - b.page).map(x => `<li class="hl-item">
+          <button type="button" class="bm" data-pdf-note="${x.id}"><b>Page ${x.page}</b>${x.quote ? `<span class="hl-snip">“${esc(x.quote)}”</span>` : ''}<span class="hl-snip">${esc(x.text)}</span></button></li>`).join('')}</ul>` : '')
+      || '<p class="note left">No bookmarks, highlights or notes yet. Tap the bookmark icon to save a page, the note icon to write on a page, or select some text to highlight it or add a note.</p>';
     if (!$('#pdfMarksSheet').open) $('#pdfMarksSheet').showModal();
   },
 
@@ -2151,7 +2378,13 @@ const pdfReader = {
   $('#pdfBack').addEventListener('click', () => goBack('library'));
   $('#pdfMark').addEventListener('click', () => pdfReader.toggleMark());
   $('#pdfList').addEventListener('click', () => pdfReader.openMarks());
+  $('#pdfNote').addEventListener('click', () => { if (pdfReader.doc) pdfReader.editNote(null, { page: pdfReader.currentPage() }); });
+  $('#pdfHlNote').addEventListener('pointerdown', e => e.preventDefault());
+  $('#pdfHlNote').addEventListener('click', () => pdfReader.highlightSelection('yellow', true));
+  $('#pdfPages').addEventListener('click', e => { const m = e.target.closest('.pnote'); if (m) { e.stopPropagation(); pdfReader.editNote(+m.dataset.note); } });
   $('#pdfMarksBody').addEventListener('click', e => {
+    const nb = e.target.closest('[data-pdf-note]');
+    if (nb) { $('#pdfMarksSheet').close(); const n = pdfReader.notes().find(x => x.id === +nb.dataset.pdfNote); if (n) { pdfReader.goTo(n.page); setTimeout(() => pdfReader.flash(n.page, n.id), 500); } return; }
     const del = e.target.closest('[data-pdf-del]');
     if (del) {
       const list = pdfReader.hls(); const [h] = list.splice(+del.dataset.pdfDel, 1);
@@ -2234,6 +2467,7 @@ function initSettingsSheet() {
     sel.value = settings.reciter;
     $('#setRepeat').value = String(settings.repeat);
     $('#setFont').value = settings.fontSize;
+    $('#setZoom').value = settings.mushafZoom || 1;
     $('#setTajweed').checked = !!settings.tajweed;
     $('#setTranslation').checked = settings.translation;
     $('#setTafsir').checked = settings.tafsir;
@@ -2242,6 +2476,7 @@ function initSettingsSheet() {
     $('#setListenRepeat').checked = settings.listenRepeat;
     $('#setPopups').checked = settings.mistakePopups;
     $('#setLevel').value = settings.checkLevel || 'tajweed';
+    $('#setStrict').value = settings.strict || 'balanced';
     $('#setLevel').disabled = !(window.QuranSpeech && QuranSpeech.supported()) || settings.engine === 'browser';
     $('#setEngine').value = useQuranModel() || settings.engine !== 'browser' ? 'quran' : 'browser';
     $('#setEngine').querySelector('[value=quran]').disabled = !(window.QuranSpeech && QuranSpeech.supported());
@@ -2252,6 +2487,7 @@ function initSettingsSheet() {
   sel.addEventListener('change', () => setReciter(sel.value));
   $('#setRepeat').addEventListener('change', e => { settings.repeat = +e.target.value; saveSettings(); });
   $('#setFont').addEventListener('input', e => { settings.fontSize = +e.target.value; saveSettings(); });
+  $('#setZoom').addEventListener('change', e => { setMushafZoom(+e.target.value); });
   $('#setTajweed').addEventListener('change', e => {
     settings.tajweed = e.target.checked; saveSettings();
     document.documentElement.classList.toggle('tajweed-on', settings.tajweed);
@@ -2272,6 +2508,7 @@ function initSettingsSheet() {
   $('#setListenRepeat').addEventListener('change', e => { settings.listenRepeat = e.target.checked; saveSettings(); });
   $('#setPopups').addEventListener('change', e => { settings.mistakePopups = e.target.checked; saveSettings(); });
   $('#installBtn').addEventListener('click', () => { $('#settingsSheet').close(); install.start(); });
+  $('#setStrict').addEventListener('change', e => { settings.strict = e.target.value; saveSettings(); if (rec.active && rec.phon) rec.update(false); });
   $('#setLevel').addEventListener('change', e => { settings.checkLevel = e.target.value; saveSettings(); if (rec.active && rec.phon) rec.update(false); });
   $('#setEngine').addEventListener('change', e => { $('#setLevel').disabled = e.target.value === 'browser'; settings.engine = e.target.value; saveSettings(); if (rec.active) rec.stop(false); if (settings.engine === 'quran' && window.QuranSpeech) QuranSpeech.preload(); });
   const open = () => { sync(); $('#settingsSheet').showModal(); };
@@ -2323,7 +2560,36 @@ $('#micBtn').addEventListener('click', () => {
 (function wireReader() {
   const stage = $('#pageStage');
   let x0 = null, y0 = 0;
-  stage.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; });
+  // Pinch to zoom the mushaf (two fingers).
+  const touches = new Map(); let pinch = null;
+  const dist = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  stage.addEventListener('pointerdown', e => {
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size === 2) { pinch = { d: dist(), z: Number(settings.mushafZoom) || 1, target: null }; x0 = null; return; }
+    x0 = e.clientX; y0 = e.clientY;
+  });
+  stage.addEventListener('pointermove', e => {
+    if (!touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && touches.size === 2) {
+      const z = Math.round(Math.min(3, Math.max(1, pinch.z * dist() / pinch.d)) * 4) / 4;
+      if (z !== pinch.target) {
+        pinch.target = z;
+        let h = $('#zoomHint'); if (!h) { h = document.createElement('div'); h.id = 'zoomHint'; h.className = 'zoom-hint'; document.body.append(h); }
+        h.textContent = z === 1 ? 'Full page' : Math.round(z * 100) + '%'; h.hidden = false;
+      }
+    }
+  });
+  const endTouch = e => {
+    touches.delete(e.pointerId);
+    if (pinch && touches.size < 2) {
+      const z = pinch.target; pinch = null; x0 = null;
+      const h = $('#zoomHint'); if (h) setTimeout(() => { h.hidden = true; }, 500);
+      if (z != null) setMushafZoom(z, true);
+    }
+  };
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => stage.addEventListener(t, endTouch));
+  ['gesturestart', 'gesturechange'].forEach(t => stage.addEventListener(t, e => e.preventDefault()));
   stage.addEventListener('pointercancel', () => { x0 = null; });
   stage.addEventListener('pointerup', e => {
     if (x0 === null) return;
@@ -2389,6 +2655,7 @@ $('#micBtn').addEventListener('click', () => {
   $('#mReciter').addEventListener('click', openReciters);
   $('#ayahClose').addEventListener('click', () => mushaf.select(null));
   $('#ayahMark').addEventListener('click', () => toggleAyahMark(...sel()));
+  $('#ayahNote').addEventListener('click', () => editAyahNote(...sel()));
   document.querySelectorAll('#ayahBar [data-hl]').forEach(b => b.addEventListener('click', () => {
     setHighlight(state.selected, b.dataset.hl);
     mushaf.syncAyahBar();

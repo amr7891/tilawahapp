@@ -161,12 +161,32 @@
   }
 
   function maddLen(u) { return u && u.madd ? u.madd : 0; }
+  // How sure the model was of the sound it wrote down (0–1).
+  function sure(H, y) {
+    const h = H[y];
+    if (!h || !h.alt) return 1;
+    const own = h.alt.find(a => a[0] === h.id);
+    return own ? own[1] : 1;
+  }
 
   // Explain the differences in one word.
   function explain(W, form, H, y0, y1, opts) {
     const X = form.units, errs = [];
     const level = opts.level || 'tajweed', tau = opts.tau == null ? 0.12 : opts.tau;
     const list = ops(X, H, y0, y1);
+    const ms = opts.minSure == null ? 0.8 : opts.minSure;
+    // At a word's edges the model may hear the joining sound of two words as one unit
+    // (وو + وَ heard as وووَ): a difference there in that same letter is not a mistake.
+    const edgeLetter = new Set();
+    [X[0], X[X.length - 1]].forEach(id => { const u = units[id]; if (u) edgeLetter.add(u.letter || u.maddChar); });
+    const edgeMerge = o => {
+      const atEdge = o.x <= 0 || o.x >= X.length - 1;
+      if (!atEdge) return false;
+      const u = o.op === 'ins' ? units[H[o.y].id] : units[X[o.x]];
+      if (!u) return false;
+      const l = u.letter || u.maddChar;
+      return edgeLetter.has(l) && (l === 'و' || l === 'ي' || l === 'ۥ' || l === 'ۦ' || u.shadda || (o.op !== 'sub' && (H[o.y - 1] && units[H[o.y - 1].id] && units[H[o.y - 1].id].letter === l || H[o.y + 1] && units[H[o.y + 1].id] && units[H[o.y + 1].id].letter === l)));
+    };
     for (let k = 0; k < list.length; k++) {
       const o = list[k];
       const xu = o.op !== 'ins' ? units[X[o.x]] : null;
@@ -177,10 +197,13 @@
       if (o.op === 'eq') continue;
       if (o.op === 'sub') {
         if (heardMaybe(H, o.y, X[o.x], tau)) continue;
+        if (sure(H, o.y) < ms) continue;
+        if (edgeMerge(o)) continue;
         if (xu.madd && yu.madd) {
           const ok = rule && MADD_OK[rule] ? MADD_OK[rule] : [xu.madd];
           if (ok.includes(yu.madd) || (atEnd && W.last)) continue;
           if (Math.abs(yu.madd - xu.madd) === 1 && rule !== 'N') continue;
+          if (ok.some(n => Math.abs(n - yu.madd) <= 1) && sure(H, o.y) < 0.9) continue;
           e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: yu.str, msg: `${rule ? cap(MADD_NAMES[rule]) : 'Madd'}: hold for ${ok.join(' or ')} counts (heard ${yu.madd})` };
         } else if (xu.letter && xu.letter === yu.letter) {
           if (xu.ghunnah !== yu.ghunnah) e = { type: 'ghunnah', sev: 'tajweed', exp: xu.str, got: yu.str, msg: xu.ghunnah ? (xu.base.includes('ں') ? 'Ikhfaʾ: hide the nun with ghunnah' : xu.base.includes('۾') ? 'Ikhfaʾ shafawi: hide the mim with ghunnah' : 'Ghunnah: hold the nasal sound for 2 counts') : 'No ghunnah here' };
@@ -196,13 +219,16 @@
           e = { type: 'letter', sev: 'wrong', exp: xu.str, got: yu.str, msg: `Letter: ${LETTER_NAMES[xu.letter] || xu.str}, not ${LETTER_NAMES[yu.letter] || yu.str}` };
         }
       } else if (o.op === 'del') {
-        if (heardMaybe(H, o.y, X[o.x], tau) || heardMaybe(H, o.y - 1, X[o.x], tau)) continue;
+        if (heardMaybe(H, o.y, X[o.x], 0.03) || heardMaybe(H, o.y - 1, X[o.x], 0.03)) continue;
+        if (sure(H, o.y) < ms || sure(H, o.y - 1) < ms) continue;
+        if (edgeMerge(o)) continue;
         if (atEnd && (W.last || opts.pauseAfter) && (xu.madd || !xu.base)) continue;
         if (xu.madd) {
           const ok = rule && MADD_OK[rule] ? MADD_OK[rule] : [xu.madd];
           e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: '', msg: `${rule ? cap(MADD_NAMES[rule]) : 'Madd'}: lengthen for ${ok.join(' or ')} counts` };
         } else e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: `Missing: ${LETTER_NAMES[xu.letter] || xu.str}` };
       } else if (o.op === 'ins') {
+        if (sure(H, o.y) < ms || edgeMerge(o)) continue;
         // A stutter or a restart (the same sound again) is not a mistake.
         const prevH = H[o.y - 1], nextH = H[o.y + 1];
         if ((prevH && prevH.id === H[o.y].id) || (nextH && nextH.id === H[o.y].id)) continue;
@@ -334,6 +360,8 @@
         }
       }
       const pauseAfter = !!(pauses && pauses.has(y + cur.k));
+      // While still reciting, judge a word only once the next sounds have come in.
+      if (!final && !pauseAfter && y + cur.k + (opts.settle == null ? 4 : opts.settle) > H.length) break;
       let errs = explain(w, cur.form, H, y, y + cur.k, Object.assign({}, opts, { pauseAfter }));
       // The recording stopped in the middle of this word: don't judge the unsaid part.
       if (final && y + cur.k >= H.length && errs.length && errs.every(e => e.type === 'missing' || (e.type === 'madd' && !e.got))) {
