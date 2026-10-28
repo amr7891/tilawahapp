@@ -333,7 +333,7 @@ const Q = {
 
 const settings = Object.assign({
   reciter: 'Muhammad_Ayyoub_128kbps', repeat: 1, fontSize: 30, translation: false, tafsir: false,
-  autoNext: true, hide: false, listenRepeat: false, speed: 1, mistakePopups: true, mushaf: 'madinah', readMode: 'mushaf',
+  autoNext: true, followWords: true, hide: false, listenRepeat: false, speed: 1, mistakePopups: true, mushaf: 'madinah', readMode: 'mushaf',
   engine: 'quran', checkLevel: 'tajweed', tajweed: true, strict: 'balanced', mushafZoom: 1,
 }, store.get('settings', {}));
 if (!RECITERS.some(r => r.id === settings.reciter)) settings.reciter = 'Muhammad_Ayyoub_128kbps';
@@ -463,7 +463,8 @@ function wordClass(w) {
   if (st) c += ' ' + st;
   else if (settings.hide && !peeks.has(w.id) && (state.view === 'mushaf' || state.view === 'surah') && memHidden(w)) c += ' hidden';
   if (rec.active && rec.nextId === w.id) c += ' next';
-  if (player.playing && player.key() === key) c += ' playing';
+  if (player.playing && player.key() === key && !(settings.followWords && wordFollow.available())) c += ' playing';
+  if (wordFollow.id === w.id) c += ' reading';
   if (state.selected === key) c += ' selected';
   const hl = highlights()[key];
   if (hl) c += ' hl-' + hl;
@@ -475,6 +476,55 @@ function memHidden(w) {
   if (!rec.active || rec.auto || !rec.from) return true;
   return rec.inScope(w) !== 0;
 }
+// Word-by-word follow-along while a reciter plays. Each ayah's time is shared among its
+// words in proportion to how long they take to say (sounds; a madd by its counts; a held
+// ghunnah longer), from the reference phonemes.
+const wordFollow = {
+  id: null, line: null, fr: new Map(), raf: 0,
+  fractions(s, a) {
+    const k = `${s}:${a}`;
+    if (this.fr.has(k)) return this.fr.get(k);
+    if (!TajweedData.ready) { TajweedData.load().catch(() => {}); return null; }
+    const un = Tajweed.units(), w = [];
+    for (let pos = 1; ; pos++) {
+      const W = Tajweed.word(s, a, pos); if (!W) break;
+      w.push(W.wasl.reduce((t, id) => { const u = un[id]; return t + (!u ? 1 : u.madd ? u.madd / 2 : u.ghunnah ? 1.5 : 1); }, 0) + 0.3);
+    }
+    const tot = w.reduce((x, y) => x + y, 0), cum = [0];
+    w.forEach(x => cum.push(cum[cum.length - 1] + x / tot));
+    this.fr.set(k, cum);
+    return cum;
+  },
+  set(id) {
+    if (this.line && !this.line.isConnected) { this.line = null; this.id = null; }   // the page was redrawn
+    if (id === this.id) return;
+    const old = this.id && wordEls.get(this.id);
+    if (old) old.els.forEach(el => el.classList.remove('reading'));
+    this.id = id;
+    const now = id && wordEls.get(id);
+    const line = now && now.els[0] && now.els[0].closest('.mline');
+    if (now) now.els.forEach(el => el.classList.add('reading'));
+    if (line !== this.line) { if (this.line) this.line.classList.remove('reading-line'); if (line) line.classList.add('reading-line'); this.line = line; }
+  },
+  tick() {
+    this.raf = 0;
+    const p = player, el = p.audio;
+    if (!settings.followWords || !p.playing || p.gi < 0 || p.inBism || !['mushaf', 'surah'].includes(state.view) || !wordFollow.available()) { this.set(null); if (p.playing) this.raf = requestAnimationFrame(() => this.tick()); return; }
+    const [s, a] = Q.all[p.gi];
+    const cum = this.fractions(s, a);
+    let t0 = 0, t1 = el.duration;
+    if (p.span) { t0 = (p.ayahSpan || p.span)[0]; t1 = p.span[1]; }
+    if (cum && isFinite(t1) && t1 > t0 && el.currentTime >= t0 - 0.05) {
+      const lead = 0.15, trail = 0.3, f = (el.currentTime - t0 - lead) / Math.max(0.3, t1 - t0 - lead - trail);
+      let i = 0; while (i + 1 < cum.length - 1 && cum[i + 1] <= f) i++;
+      this.set(`${s}:${a}:${i + 1}`);
+    } else this.set(null);
+    this.raf = requestAnimationFrame(() => this.tick());
+  },
+  start() { if (!this.raf) this.raf = requestAnimationFrame(() => this.tick()); },
+  // Only for reciters with measured word timings (estimates were right only ~45% of the time).
+  available() { return !!(currentReciter().words); },
+};
 function paintWords() {
   wordEls.forEach(({ w, els }) => { const c = wordClass(w); els.forEach(el => { if (el.className !== c) el.className = c; }); });
   const hls = highlights();
@@ -1102,9 +1152,10 @@ const player = {
   pause() { this.audio.pause(); this.playing = false; media.set('paused'); paintWords(); updateControls(); },
   stop() { this.audio.pause(); this.playing = false; this.active = false; media.set('paused'); paintWords(); updateControls(); },
 
-  resumeOr(startFn) {
+  // here: is the paused ayah on the screen being read? Otherwise play starts afresh there.
+  resumeOr(startFn, here) {
     if (this.playing) { this.pause(); return; }
-    if (this.gi >= 0 && this.audio.src && !this.audio.ended && this.audio.currentTime > 0 && (!this.span || this.audio.currentTime < this.span[1])) {
+    if (this.active && this.gi >= 0 && (!here || here(Q.all[this.gi])) && this.audio.src && !this.audio.ended && this.audio.currentTime > 0 && (!this.span || this.audio.currentTime < this.span[1])) {
       this.playing = true; this.audio.play().catch(() => {}); paintWords(); updateControls();
     } else startFn();
   },
@@ -1154,7 +1205,7 @@ function wireAudio(el) {
   el.addEventListener('ended', () => { if (mine() && player.playing) player.ended(); });
   el.addEventListener('timeupdate', () => { if (mine()) checkSpan(); });
   el.addEventListener('emptied', () => { if (mine()) { switching = true; setTimeout(() => { switching = false; }, 400); } });
-  el.addEventListener('play', () => { if (!mine()) return; media.set('playing'); if (!player.playing && player.gi >= 0) { player.playing = true; paintWords(); updateControls(); } });
+  el.addEventListener('play', () => { if (!mine()) return; media.set('playing'); wordFollow.start(); if (!player.playing && player.gi >= 0) { player.playing = true; paintWords(); updateControls(); } });
   el.addEventListener('pause', () => {
     if (!mine() || switching || el.ended) return;
     // Pauses the app makes itself between ayahs are followed by play straight away.
@@ -1258,7 +1309,7 @@ const TajweedData = {
   load() {
     if (!this.p) {
       this.p = Promise.all([fetch('models/quran-phoneme/tokens.txt').then(r => r.text()), fetchJSON('data/quran-ph.json')])
-        .then(([tok, ref]) => { Tajweed.init(tok, ref); return true; });
+        .then(([tok, ref]) => { Tajweed.init(tok, ref); this.ready = true; return true; });
       this.p.catch(() => { this.p = null; });
     }
     return this.p;
@@ -2613,6 +2664,7 @@ function initSettingsSheet() {
     $('#setTranslation').checked = settings.translation;
     $('#setTafsir').checked = settings.tafsir;
     $('#setAutoNext').checked = settings.autoNext;
+    $('#setFollow').checked = settings.followWords !== false;
     $('#setHide').checked = settings.hide;
     $('#setListenRepeat').checked = settings.listenRepeat;
     $('#setPopups').checked = settings.mistakePopups;
@@ -2645,6 +2697,7 @@ function initSettingsSheet() {
     if (state.view === 'surah') { if (settings.tafsir) surahView.loadTafsir(state.surahNum); else surahView.showTafsir(); }
   });
   $('#setAutoNext').addEventListener('change', e => { settings.autoNext = e.target.checked; saveSettings(); });
+  $('#setFollow').addEventListener('change', e => { settings.followWords = e.target.checked; saveSettings(); wordFollow.set(null); paintWords(); });
   $('#setHide').addEventListener('change', e => { settings.hide = e.target.checked; saveSettings(); paintWords(); });
   $('#setListenRepeat').addEventListener('change', e => { settings.listenRepeat = e.target.checked; saveSettings(); });
   $('#setPopups').addEventListener('change', e => { settings.mistakePopups = e.target.checked; saveSettings(); });
@@ -2694,7 +2747,7 @@ $('#dockReciter').addEventListener('click', () => {
   openReciters();
 });
 $('#dockClose').addEventListener('click', () => { player.stop(); syncDock(); });
-$('#playBtn').addEventListener('click', () => player.resumeOr(() => player.play(state.surahNum, surahView.visibleAyah())));
+$('#playBtn').addEventListener('click', () => player.resumeOr(() => player.play(state.surahNum, surahView.visibleAyah()), ([s]) => state.view !== 'surah' || s === state.surahNum));
 $('#prevBtn').addEventListener('click', () => { if (!player.step(-1)) player.play(state.surahNum, Math.max(1, surahView.visibleAyah() - 1)); });
 $('#nextBtn').addEventListener('click', () => { if (!player.step(1)) player.play(state.surahNum, Math.min(Q.ch(state.surahNum).ayahs, surahView.visibleAyah() + 1)); });
 $('#micBtn').addEventListener('click', () => {
@@ -2795,7 +2848,7 @@ $('#micBtn').addEventListener('click', () => {
   // Play: the selected ayah if one is selected (and not already the one playing), else resume or start the page.
   $('#mPlay').addEventListener('click', () => {
     if (state.selected && !(player.playing && player.key() === state.selected)) { const [s, a] = state.selected.split(':').map(Number); player.play(s, a); return; }
-    player.resumeOr(async () => { const [s, a] = await mushaf.startAyah(); player.play(s, a); });
+    player.resumeOr(async () => { const [s, a] = await mushaf.startAyah(); player.play(s, a); }, ([s, a]) => Q.ayahPage(s, a) === mushaf.page);
   });
   // Mark: highlight colours and a note, shown only when asked for.
   const markup = open => { $('#abMain').hidden = open; $('#abMarkup').hidden = !open; $('#ayahMarkup').setAttribute('aria-expanded', open); };

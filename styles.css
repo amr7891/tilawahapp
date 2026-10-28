@@ -24,6 +24,7 @@
   --paper-ink: #141A17;
   --frame: #1E5C4C;
   --hl-play: rgba(30, 92, 76, .13);
+  --hl-word: rgba(245, 190, 50, .55); --hl-line: rgba(245, 197, 66, .17);
   --hl-select: rgba(169, 119, 42, .2);
   color-scheme: light;
 }
@@ -32,7 +33,7 @@
     --bg: #0E1412; --surface: #151E1A; --surface-2: #1C2722; --ink: #E5ECE7; --muted: #92A39A;
     --line: #26332D; --accent: #5DB197; --accent-ink: #08130F; --gold: #D9AE5C;
     --ok: #5CC88B; --ok-bg: #173225; --bad: #F06E58; --bad-bg: #3A1D17; --skip: #E6B24A; --skip-bg: #392C12;
-    --page-bg: #070B09; --paper: #111915; --paper-ink: #E3EAE5; --frame: #4FA58B; --hl-play: rgba(93, 177, 151, .2); --hl-select: rgba(217, 174, 92, .22);
+    --page-bg: #070B09; --paper: #111915; --paper-ink: #E3EAE5; --frame: #4FA58B; --hl-play: rgba(93, 177, 151, .2); --hl-select: rgba(217, 174, 92, .22); --hl-word: rgba(232, 180, 60, .45); --hl-line: rgba(232, 180, 60, .13);
     color-scheme: dark;
   }
 }
@@ -40,7 +41,7 @@
   --bg: #0E1412; --surface: #151E1A; --surface-2: #1C2722; --ink: #E5ECE7; --muted: #92A39A;
   --line: #26332D; --accent: #5DB197; --accent-ink: #08130F; --gold: #D9AE5C;
   --ok: #5CC88B; --ok-bg: #173225; --bad: #F06E58; --bad-bg: #3A1D17; --skip: #E6B24A; --skip-bg: #392C12;
-  --page-bg: #070B09; --paper: #111915; --paper-ink: #E3EAE5; --frame: #4FA58B; --hl-play: rgba(93, 177, 151, .2); --hl-select: rgba(217, 174, 92, .22);
+  --page-bg: #070B09; --paper: #111915; --paper-ink: #E3EAE5; --frame: #4FA58B; --hl-play: rgba(93, 177, 151, .2); --hl-select: rgba(217, 174, 92, .22); --hl-word: rgba(232, 180, 60, .45); --hl-line: rgba(232, 180, 60, .13);
   color-scheme: dark;
 }
 
@@ -171,6 +172,10 @@ a.surah-row { color: inherit; text-decoration: none; }
 /* Word states, shared by the mushaf and the text view. */
 .w { border-radius: 4px; transition: color .15s, background .15s; }
 .w.playing, .end.lit { background: var(--hl-play); }
+/* Word-by-word follow-along: the word being recited, and its line in a lighter shade. */
+.mline.reading-line { background: var(--hl-line); border-radius: 6px; }
+.w.reading { background: var(--hl-word); }
+.qtext .w.reading { background: var(--hl-word); border-radius: 4px; }
 .w.selected { background: var(--hl-select); }
 .w.ok { color: var(--ok); }
 .w.wrong { color: var(--bad); background: color-mix(in srgb, var(--bad) 16%, transparent); }
