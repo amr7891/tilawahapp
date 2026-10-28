@@ -249,6 +249,9 @@
           const ok = rule && MADD_OK[rule] ? MADD_OK[rule] : [xu.madd];
           // Stopping on the word: its final madd shortens or drops (a pronoun's silah goes).
           if (ok.includes(yu.madd) || (atEnd && (W.last || opts.pauseAfter))) continue;
+          // The pronoun's ṣilah before a hamza (bihī innahu) follows the separated madd (4 or 5),
+          // but the model hears it as 2 even from master reciters: its length isn't judged.
+          if (rule === 'F' && o.x > 0 && units[X[o.x - 1]] && units[X[o.x - 1]].letter === 'ه') continue;
           if (Math.abs(yu.madd - xu.madd) === 1 && rule !== 'N') continue;
           if (ok.some(n => Math.abs(n - yu.madd) <= 1) && sure(H, o.y) < 0.9) continue;
           e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: yu.str, msg: `${rule ? MADD_NAMES[rule] : 'Madd'}: hold for ${counts(ok)} (you held ${yu.madd})` };
