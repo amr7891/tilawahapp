@@ -746,3 +746,16 @@ button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -web
 
 /* iPhones zoom the page in on any text box under 16px when it is tapped (and stay zoomed). */
 input, textarea, select { font-size: 16px; }
+
+/* Library: books kept on this phone */
+.add-book { display: inline-flex; align-items: center; gap: 8px; margin: 2px 0 10px; }
+.add-book svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.brow .chip.on { background: var(--accent); color: #fff; border-color: transparent; }
+.brow-rm { margin-left: auto; flex: none; }
+.pdf-need { max-width: 420px; margin: 0 auto; text-align: center; padding: 8px 16px; }
+.pdf-need > svg { width: 44px; height: 44px; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
+.pdf-need p { margin: 8px 0; color: var(--muted); line-height: 1.5; }
+.pdf-need p b { color: var(--ink); }
+.pdf-get { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+.pdf-get .btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; color: var(--ink); min-width: 150px; }
+.pdf-get .btn.primary { color: #fff; }

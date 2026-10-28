@@ -152,6 +152,19 @@ SHELVES.forEach(sh => {
   });
 });
 
+// Publishers named on the books' title pages, for finding each book at its source.
+const PUBLISHERS = [
+  ['Al-Sira', 'Garnet Publishing'], ['Nature_Of_Fasting', 'Darussalam'], ['Kitab-At-Tauhid', 'Darussalam'],
+  ['Biography%20Of%20Imam', 'Darussalam'], ['Heavens%20Door', 'Al-Firdous'], ['Spiritual%20Disease', 'Al-Firdous'],
+  ['Relief%20From%20Distress', "Daar us-Sunnah"], ['Friends_of_Allah', "Daar us-Sunnah"], ['The_Remedy_For', 'IIPH'],
+  ['Patience_and_Gratitude', 'Ta-Ha Publishers'],
+];
+SHELVES.forEach(sh => sh.items.forEach(b => {
+  const u = (b.files[0] && b.files[0].url) || '';
+  const hit = PUBLISHERS.find(([k]) => u.includes(k));
+  if (hit) b.publisher = hit[1];
+}));
+
 // Where each juz begins (surah, ayah).
 const JUZ_STARTS = [
   [1, 1], [2, 142], [2, 253], [3, 93], [4, 24], [4, 148], [5, 82], [6, 111], [7, 88], [8, 41],
@@ -2173,30 +2186,103 @@ async function renderShelves() {
       <b>${esc(b.en)}</b>
       <span>${b.count.toLocaleString()} hadith${b.chapters.length > 1 ? ` · ${b.chapters.length} books` : ''}</span>${b.english === false || (b.english === undefined && b.slug === 'darimi') ? '<span class="chip">Arabic only</span>' : ''}</a>`;
   const shelf = (id, title, note, items, cls = 'hgrid') => `<section class="lib-section" id="shelf-${id}"><h2>${title}</h2>${note ? `<p class="lib-note">${note}</p>` : ''}<div class="${cls}">${items}</div></section>`;
+  const have = new Set(await bookFiles.keys());
   const bookRow = b => {
     const one = b.files.length === 1;
     const href = one ? '#read-' + b.id + '-0' : '#book-' + b.id;
+    const got = b.files.filter((_, i) => have.has(`${b.id}:${i}`)).length;
     return `<li><a class="brow" href="${href}">
       <span class="brow-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/></svg></span>
       <span class="info"><b>${esc(b.title)}</b><span>${esc([b.author, b.note].filter(Boolean).join(' · '))}</span></span>
-      <span class="chip">${one ? 'PDF' : b.files.length + ' PDFs'}</span></a></li>`;
+      ${b.mine ? `<button type="button" class="icon-btn brow-rm" data-rm-book="${esc(b.id)}" aria-label="Remove ${esc(b.title)} from this phone"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`
+        : `<span class="chip${got ? ' on' : ''}">${got ? (one ? 'On phone' : `${got}/${b.files.length} on phone`) : 'Get'}</span>`}</a></li>`;
   };
-  const jump = [['hadith-nine', 'Hadith'], ...SHELVES.map(sh => [sh.id, sh.title])];
+  const mine = myShelfItems();
+  const jump = [['mine', 'My books'], ['hadith-nine', 'Hadith'], ...SHELVES.map(sh => [sh.id, sh.title])];
   box.innerHTML = `<nav class="chips" aria-label="Library sections">${jump.map(([id, t]) => `<button type="button" class="chip-btn" data-shelf="${id}">${esc(t)}</button>`).join('')}</nav>` +
+    shelf('mine', 'My books', 'Add any PDF from your phone. It stays on this phone, with your highlights and notes.',
+      `<button type="button" class="btn add-book" id="addBook"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add a book</button>` +
+      (mine.length ? `<ul class="blist">${mine.map(bookRow).join('')}</ul>` : ''), '') +
     shelf('hadith-nine', 'The nine books', 'Al-Kutub at-Tisʿah, as published on Sunnah.com.', H.index.filter(b => b.group === 'nine').map(card).join('')) +
     shelf('hadith-selections', 'Selections', '', H.index.filter(b => b.group === 'selections').map(card).join('')) +
-    SHELVES.map(sh => shelf(sh.id, sh.title + (sh.arabic ? ` <span class="shelf-ar" lang="ar">${sh.arabic}</span>` : ''), sh.id === 'sirah' || sh.id === 'more' ? '' : `${sh.items.length} books in English translation.`,
+    SHELVES.map(sh => shelf(sh.id, sh.title + (sh.arabic ? ` <span class="shelf-ar" lang="ar">${sh.arabic}</span>` : ''), `${sh.items.length > 1 ? `${sh.items.length} books` : 'A book'} in English translation. The translations belong to their publishers: tap a book to get it from them, then add the PDF and it opens here.`,
       `<ul class="blist">${sh.items.map(bookRow).join('')}</ul>`, '')).join('') +
     '';
+  $('#addBook').addEventListener('click', addMyBook);
+  box.querySelectorAll('[data-rm-book]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); removeMyBook(b.dataset.rmBook); }));
   box.querySelector('.chips').addEventListener('click', e => {
     const b = e.target.closest('[data-shelf]');
     if (b) document.getElementById('shelf-' + b.dataset.shelf).scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
 
+/* The app hosts no books (the translations belong to their publishers). A reader gets a
+   book from its publisher and adds the PDF here; it is kept on this phone only. */
+const bookFiles = {
+  db: null,
+  open() {
+    if (!this.db) this.db = new Promise((res, rej) => {
+      const r = indexedDB.open('tilawah-books', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('files');
+      r.onsuccess = () => res(r.result); r.onerror = () => { this.db = null; rej(r.error); };
+    });
+    return this.db;
+  },
+  async run(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => { const t = db.transaction('files', mode); const q = fn(t.objectStore('files')); t.oncomplete = () => res(q.result); t.onerror = t.onabort = () => rej(t.error); });
+  },
+  get(k) { return this.run('readonly', s => s.get(k)).catch(() => null); },
+  put(k, v) { return this.run('readwrite', s => s.put(v, k)); },
+  del(k) { return this.run('readwrite', s => s.delete(k)).catch(() => {}); },
+  keys() { return this.run('readonly', s => s.getAllKeys()).catch(() => []); },
+};
+function myBooks() { return store.get('myBooks', []); }
+const MY_SHELF = { id: 'mine', title: 'My books' };
+function myShelfItems() { return myBooks().map(m => ({ id: m.id, title: m.title, author: 'Added on this phone', note: '', files: [{ label: 'PDF' }], mine: true })); }
 function findBook(id) {
+  const mine = myShelfItems().find(x => x.id === id);
+  if (mine) return { b: mine, sh: MY_SHELF };
   for (const sh of SHELVES) { const b = sh.items.find(x => x.id === id); if (b) return { b, sh }; }
   return null;
+}
+// Where to get a book: its publisher's page if known, otherwise a web search for it.
+function bookSourceUrl(b) {
+  if (b.source) return b.source;
+  return 'https://www.google.com/search?q=' + encodeURIComponent(`"${b.title.replace(/\s*\(.*\)\s*/g, ' ').trim()}" ${b.author || ''} ${b.publisher || ''} book`.replace(/\s+/g, ' '));
+}
+// Read a PDF the reader picked and keep it on this phone.
+async function addBookFile(file, key) {
+  if (!file) return false;
+  const head = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+  if (String.fromCharCode(...head) !== '%PDF-') { toast('That file isn\u2019t a PDF.', 'bad'); return false; }
+  try {
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    await bookFiles.put(key, new Blob([await file.arrayBuffer()], { type: 'application/pdf' }));
+    return true;
+  } catch (_) { toast('There isn\u2019t enough space on this phone to keep that book.', 'bad'); return false; }
+}
+function pickPdf(onFile) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'application/pdf,.pdf';
+  inp.addEventListener('change', () => { if (inp.files && inp.files[0]) onFile(inp.files[0]); });
+  inp.click();
+}
+async function addMyBook() {
+  pickPdf(async f => {
+    const id = 'my-' + Date.now().toString(36);
+    if (!(await addBookFile(f, id + ':0'))) return;
+    const title = f.name.replace(/\.pdf$/i, '').replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Book';
+    store.set('myBooks', [{ id, title, t: Date.now() }].concat(myBooks()));
+    location.hash = 'read-' + id + '-0';
+  });
+}
+async function removeMyBook(id) {
+  const m = myBooks().find(x => x.id === id); if (!m) return;
+  store.set('myBooks', myBooks().filter(x => x.id !== id));
+  await bookFiles.del(id + ':0');
+  toast(`Removed \u201c${m.title}\u201d from this phone.`);
+  if (state.view === 'library') renderShelves();
 }
 
 function openBook(id) {
@@ -2318,12 +2404,6 @@ function loadPdfJs() {
   return pdfjsReady;
 }
 
-// Every book ships inside the app, in /books, under the file name of its source PDF
-// (see tools/book_urls.txt). Nothing is loaded from other websites.
-function localBookPath(url) {
-  if (!/^https?:/.test(url)) return url;
-  try { return 'books/' + encodeURIComponent(decodeURIComponent(new URL(url).pathname.split('/').pop())); } catch (_) { return null; }
-}
 
 const pdfReader = {
   doc: null, task: null, id: null, fi: 0, zoom: 1, page: 1, token: 0, observer: null, rendered: new Map(),
@@ -2345,34 +2425,19 @@ const pdfReader = {
     st.hidden = false;
     st.innerHTML = '<span class="spinner" aria-hidden="true"></span><p>Opening the book…</p>';
     let lib;
-    try { lib = await loadPdfJs(); } catch (_) { this.fail(file); return; }
+    try { lib = await loadPdfJs(); } catch (_) { this.fail(b, fi); return; }
     let doc = null;
+    const blob = await bookFiles.get(`${id}:${fi}`);
+    if (t !== this.token) return;
+    if (!blob) { this.need(b, fi); return; }
     try {
-      // The whole file is fetched once and kept by the service worker, so the book
-      // opens offline afterwards and is never downloaded twice on this device.
-      const res = await fetch(localBookPath(file.url));
-      if (!res.ok || /text\/html/.test(res.headers.get('content-type') || '')) throw new Error(res.status);
-      const total = +res.headers.get('content-length') || 0;
-      let data;
-      if (res.body && total) {
-        const reader = res.body.getReader(), parts = [];
-        let got = 0;
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          parts.push(value); got += value.length;
-          if (t === this.token) st.querySelector('p').textContent = `Opening the book… ${Math.min(99, Math.round(got / total * 100))}%`;
-        }
-        data = new Uint8Array(got); let o = 0;
-        parts.forEach(p => { data.set(p, o); o += p.length; });
-      } else data = new Uint8Array(await res.arrayBuffer());
+      const data = new Uint8Array(await blob.arrayBuffer());
       if (t !== this.token) return;
-      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
       this.task = lib.getDocument({ data });
       doc = await this.task.promise;
     } catch (_) { if (t !== this.token) return; }
     if (t !== this.token) { doc && doc.destroy(); return; }
-    if (!doc) { this.fail(file); return; }
+    if (!doc) { this.fail(b, fi); return; }
     this.doc = doc;
     st.hidden = true;
     $('#pdfPageCount').textContent = `of ${doc.numPages}`;
@@ -2384,12 +2449,30 @@ const pdfReader = {
     if (opts.page) setTimeout(() => this.flash(target, opts.note), 700);
   },
 
-  fail(file) {
+  fail(b, fi) {
     const st = $('#pdfStatus');
     st.hidden = false;
-    st.innerHTML = navigator.onLine
-      ? `<p>This book isn\u2019t in the app yet. Put <b>${esc(decodeURIComponent(localBookPath(file.url).slice(6)))}</b> in the app\u2019s <b>books</b> folder and upload the app again.</p>`
-      : '<p>This book hasn\u2019t been opened on this phone before, so it isn\u2019t saved for offline reading yet. Open it once while online.</p>';
+    st.innerHTML = `<p>This PDF couldn\u2019t be opened. It may be damaged or protected.</p>
+      <div class="pdf-get"><button type="button" class="btn" id="pdfReplace">Choose another PDF</button></div>`;
+    $('#pdfReplace').addEventListener('click', () => this.addFor(b, fi));
+  },
+  // The book isn't on this phone yet: where to get it, and a button to add the PDF.
+  need(b, fi) {
+    const st = $('#pdfStatus');
+    st.hidden = false;
+    const file = b.files[fi];
+    st.innerHTML = `<div class="pdf-need">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/></svg>
+      <p><b>${esc(b.title)}</b>${b.files.length > 1 ? ` \u00b7 ${esc(file.label)}` : ''}</p>
+      <p>This translation belongs to its publisher${b.publisher ? ` (${esc(b.publisher)})` : ''}, so it isn\u2019t in the app. Get the PDF from them, then add it here. It stays on this phone, and opens here with your highlights and notes.</p>
+      <div class="pdf-get">
+        <a class="btn" href="${esc(bookSourceUrl(b))}" target="_blank" rel="noopener">Get this book</a>
+        <button type="button" class="btn primary" id="pdfAdd">Add the PDF</button>
+      </div></div>`;
+    $('#pdfAdd').addEventListener('click', () => this.addFor(b, fi));
+  },
+  addFor(b, fi) {
+    pickPdf(async f => { if (await addBookFile(f, `${b.id}:${fi}`)) { toast('Book added. It\u2019s kept on this phone.'); this.open(b.id, fi); } });
   },
 
   // Lay out a placeholder for every page, sized from the first page, and draw pages as they scroll into view.

@@ -5,7 +5,7 @@
 // - Books: each PDF is downloaded once, then read from the phone.
 // - Recitation audio streams from EveryAyah / MP3Quran (not from this site) and the
 //   ayahs you play are kept so they replay offline.
-const SHELL = 'tilawah-shell-v49';
+const SHELL = 'tilawah-shell-v50';
 const DATA = 'tilawah-data-v4';
 const BOOKS = 'tilawah-books-v1';
 const AUDIO = 'tilawah-audio-v1';
@@ -15,7 +15,9 @@ const ASSETS = [
   './fonts/fonts.css',
   './mushaf/madinah/meta.json', './mushaf/madinah/bismillah.json', './mushaf/madinah/search.json', './mushaf/madinah/fonts/QCF4_QBSML.woff2', './hadith/index.json', './data/quran-ph.json',
 ];
-const KEEP = [SHELL, DATA, BOOKS, AUDIO];
+// Books are no longer part of the app (readers add their own, kept in IndexedDB), so the
+// old books cache is dropped.
+const KEEP = [SHELL, DATA, AUDIO];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
@@ -76,7 +78,6 @@ self.addEventListener('fetch', e => {
   if (url.hostname === 'verses.quran.foundation') { e.respondWith(cacheFirst(req)); return; }
   if (url.origin !== self.location.origin) return;
 
-  if (/\/books\/.+\.pdf$/i.test(url.pathname)) { e.respondWith(cacheFirst(req, BOOKS)); return; }
   if (/\/(mushaf|hadith|data|fonts|vendor|models)\//.test(url.pathname)) {
     // Index files change between versions and are saved with the app files.
     if (/(index|meta|search|quran-ph)\.json$/.test(url.pathname) || url.pathname.endsWith('fonts.css')) { e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req))); return; }

@@ -14,11 +14,11 @@ A phone-friendly web app (installable to the home screen) with:
 - **Qibla finder** — GPS bearing and distance to the Kaaba, a live compass on phones, manual coordinates as a fallback.
 - **Notes and Saved** — write a note on any ayah (ayah panel → Note), on any book page (note icon in the book's top bar) or on a passage (select text → Add note; it's highlighted too). Notes show as markers on the page. The Saved tab gathers bookmarks, highlights and notes from the mushaf and every book, grouped and searchable; the home screen shows the latest ones. Tapping a book item opens the book at that page and shows its note.
 - **Mushaf size** — Settings → Reading → Mushaf size, or pinch the page: at 100% the exact 15-line printed page; larger sizes show the page's words in more, shorter lines that scroll. Text view size goes up to 64 px.
-- **Library** — all nine main hadith books and the eight selections exactly as published on Sunnah.com (51,775 hadith with Arabic, English, chapter headings, grades and Sunnah.com's own reference numbers; jump to any hadith number, copy), plus shelves for the Sirah (Ibn Kathir's Al-Sira al-Nabawiyya, 4 volumes), Ibn al-Qayyim (27 books), Ibn Taymiyyah (21 books) and Kitab at-Tawhid. Books open in the app's own reader.
+- **Library** — all nine main hadith books and the eight selections exactly as published on Sunnah.com (51,775 hadith with Arabic, English, chapter headings, grades and Sunnah.com's own reference numbers; jump to any hadith number, copy), plus a reading list for the Sirah, Ibn al-Qayyim, Ibn Taymiyyah and Kitab at-Tawhid. The app hosts no books: each reader gets a book from its publisher, adds the PDF, and it opens in the app's own reader. "My books" takes any PDF from the phone.
 
 ## Put it online free with GitHub Pages (works on iPhone)
 
-Everything the app needs is inside this folder (Quran pages, translation, tafsir, hadith, all 57 books and the speech model), so GitHub can host it on its own, free, with no proxy and no usage credits.
+Everything the app needs is inside this folder (Quran pages, translation, tafsir, hadith and the speech model), so GitHub can host it on its own, free, with no proxy and no usage credits.
 
 1. Make a free account at github.com.
 2. Install **GitHub Desktop** (free) from desktop.github.com and sign in. The app is about 900 MB and 1,100 files, which is too much for the website's upload box.
@@ -38,7 +38,7 @@ In this folder run `python3 -m http.server 8000` and open http://localhost:8000.
 
 ## Add books
 
-Put the PDF in the `books/` folder and add an entry to a shelf in `SHELVES` near the top of `app.js` with its file name, e.g. `['My Book', null, 'books/my-book.pdf']`.
+Books aren't hosted. Add a title to a shelf in `SHELVES` near the top of `app.js` (`['Title', null, 'file-name.pdf']`); readers add the PDF themselves and it stays on their phone. Only host a book's PDF in `books/` if its publisher has given permission.
 
 ## Change the reciters
 
@@ -87,12 +87,12 @@ No Quran text, tafsir or hadith is written or edited by hand anywhere in the app
 - **Word timings (follow-along):** Abdul Basit (Murattal and Mujawwad), As-Sudais, Ash-Shatri, Al-Husary, Alafasy, Al-Minshawi (Murattal and Mujawwad) and Ash-Shuraim play Quran.com's full-surah recordings (download.quranicaudio.com), with each ayah's and each word's time from the Quran.com API (api.quran.com, chapter_recitations with segments), so the word being recited is highlighted exactly. Their surah recordings start at ayah 1, so the basmala is played from the reciter's Al-Fatiha first.
 - **Recitation audio:** EveryAyah.com (per-ayah files) and MP3Quran.net (full-surah recordings). The full-surah recordings are cut into ayahs with our own timings in `data/timings/`, made by `tools/align_reciter.py`: it lines each recording up with the Quran phoneme model, then moves each ayah start into the pause just before the reciter's first sound. (MP3Quran's published timings start most ayahs 0.3–0.7 s early, inside the end of the previous ayah.) Al-Juhany comes from MP3Quran because EveryAyah's files of him have the left and right channels in opposite phase, which cancels the voice on a phone speaker. Every full-surah recording was checked for the same fault: 20 of Hassan Saleh's surahs have it, and the app plays those from one channel (`data/timings/<reciter>/phase.json`; only those files go through Web Audio, so lock-screen playback of the rest is unchanged). Playing from the start of a surah recites the basmala first (not for Al-Fatiha, where it is the first ayah, or At-Tawbah).
 - **Tajweed colours:** QPC V4 tajweed page fonts and glyph codes (King Fahd Glorious Quran Printing Complex), fonts served by Quran.com (verses.quran.foundation) and glyph codes and line layout from the Quran.com API (mushaf 19), in `mushaf/v4/`.
-- **Books:** classical works by Ibn Kathir, Ibn al-Qayyim, Ibn Taymiyyah and Muhammad ibn Abdul Wahhab, in English translation, in `books/`. The PDFs were collected from Kalamullah.com and the Internet Archive (`tools/book_urls.txt`), which gather them; they are not the authors or translators. Some were made smaller (images re-compressed, nothing else changed; page counts checked). The original works are centuries old; the English translations are modern and belong to their translators and publishers, so check with them before a public release.
+- **Books:** the app hosts none. The English translations belong to their translators and publishers, so the Library lists them, links to where to get them, and opens the PDF a reader adds (kept on that phone only, in IndexedDB).
 
 ## Reading books inside the app
 
-Book PDFs open in the app's own reader (zoom, go to page, page bookmarks, highlight passages by selecting text, remembers where you stopped, night view in dark mode). Scanned books are images of pages, so they can be bookmarked but not highlighted. Every book is in the `books/` folder and is read from your own site; each one is saved on the phone the first time it's opened, so it works offline afterwards.
+Book PDFs open in the app's own reader (zoom, go to page, page bookmarks, highlights and notes, remembers where you stopped, night view in dark mode). The PDF a reader adds is kept on the phone, so it opens offline.
 
 ## Offline
 
-After the first visit the app's files are kept on the phone. Quran pages, hadith, translation, tafsir and books are kept as you open them, and recitations from EveryAyah are kept once played. Streaming new recitations needs internet.
+After the first visit the app's files are kept on the phone. Quran pages, hadith, translation and tafsir are kept as you open them, and recitations from EveryAyah are kept once played. Streaming new recitations needs internet.
