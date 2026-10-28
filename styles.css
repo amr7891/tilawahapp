@@ -545,7 +545,7 @@ button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -web
 .toggle small { color: var(--muted); font-size: 13px; }
 
 /* Summary */
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 10px; }
 .stats div { padding: 12px; border-radius: 12px; background: var(--bg); text-align: center; }
 .stats b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
 .stats span { font-size: 12px; color: var(--muted); }
@@ -583,3 +583,18 @@ button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -web
 .bismillah .bism-svg { margin: 0 auto; }
 .set-group { margin: 18px 0 2px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
 .sheet-head + .set-group { margin-top: 4px; }
+
+/* Tajweed marks */
+:root { --taj: #B26A00; --taj-bg: #FBEBD3; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --taj: #F0A443; --taj-bg: #3A2A12; } }
+:root[data-theme="dark"] { --taj: #F0A443; --taj-bg: #3A2A12; }
+.w.tajweed { color: var(--taj); background: color-mix(in srgb, var(--taj) 16%, transparent); }
+.qtext .w.tajweed { background: none; text-decoration: underline wavy; text-decoration-color: var(--taj); text-underline-offset: .35em; }
+.mistakes .kind.tajweed { background: var(--taj-bg); color: var(--taj); }
+.mistakes li { flex-wrap: wrap; }
+.mistakes .why { flex: 1 0 100%; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.stats .s-taj b { color: var(--taj); }
+.toast.warn { border-left: 3px solid var(--taj); }
+.word-why { margin: 6px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+.mistakes .icon-btn { order: 2; }
+.mistakes .why { order: 3; }

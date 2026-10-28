@@ -164,7 +164,7 @@ function toast(parts, kind) {
     if (typeof p === 'string') el.append(p);
     else { const s = document.createElement('span'); s.className = 'tw'; s.lang = 'ar'; s.textContent = p.ar; el.append(s); }
   });
-  el.className = 'toast' + (kind === 'bad' ? ' bad' : '');
+  el.className = 'toast' + (kind === 'bad' ? ' bad' : kind === 'warn' ? ' bad warn' : '');
   el.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.hidden = true; }, kind === 'bad' ? 3200 : 2400);
@@ -298,7 +298,7 @@ const Q = {
 const settings = Object.assign({
   reciter: RECITERS[0].id, repeat: 1, fontSize: 30, translation: false, tafsir: false,
   autoNext: true, hide: false, listenRepeat: false, speed: 1, mistakePopups: true, mushaf: 'madinah', readMode: 'mushaf',
-  engine: 'quran',
+  engine: 'quran', checkLevel: 'tajweed',
 }, store.get('settings', {}));
 if (!RECITERS.some(r => r.id === settings.reciter)) settings.reciter = RECITERS[0].id;
 settings.mushaf = 'madinah';
@@ -1034,7 +1034,19 @@ if ('mediaSession' in navigator) {
 /* ------------------------------------------------------------------ */
 
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-// 'quran': Tarteel's Quran model on this device (speech.js). 'browser': the browser's recognizer.
+// Tajweed reference (phonemes of every word) and the model's phoneme units, loaded on first use.
+const TajweedData = {
+  p: null,
+  load() {
+    if (!this.p) {
+      this.p = Promise.all([fetch('models/quran-phoneme/tokens.txt').then(r => r.text()), fetchJSON('data/quran-ph.json')])
+        .then(([tok, ref]) => { Tajweed.init(tok, ref); return true; });
+      this.p.catch(() => { this.p = null; });
+    }
+    return this.p;
+  },
+};
+// 'quran': the Quran phoneme model on this device (speech.js). 'browser': the browser's recognizer.
 function useQuranModel() { return settings.engine !== 'browser' && window.QuranSpeech && QuranSpeech.supported(); }
 function canListen() {
   if (!useQuranModel() && !SpeechRec) { toast('This browser can\u2019t listen. Use Safari, Chrome or Edge.', 'bad'); return false; }
@@ -1091,6 +1103,7 @@ const rec = {
   carried: '', fin: '', interim: '',
   scope: 'surah', from: null, nextPage: 0, done: false, feeding: null,
   onDone: null, announced: new Set(), curKey: '', wake: null, lastPos: 0,
+  phon: false, H: [], P: new Set(), hSkip: 0, errors: new Map(),
 
   // scope: 'single' (one ayah), 'surah' (to the end of the surah), 'open' (on through the Quran).
   async start(s, a, opts = {}) {
@@ -1106,11 +1119,13 @@ const rec = {
     this.expected = []; this.ids = new Set(); this.status = new Map();
     this.carried = this.fin = this.interim = '';
     this.announced = new Set(); this.curKey = ''; this.nextId = null; this.lastPos = 0;
+    this.phon = useQuranModel(); this.H = []; this.P = new Set(); this.hSkip = 0; this.errors = new Map();
     this.nextPage = Q.ayahPage(s, a); this.done = false; this.feeding = null;
     this.active = true;
     updateControls();
     $('#heardText').textContent = `Recite ${Q.ch(s).en} ${s}:${a}…`;
     await this.feed(80);
+    if (this.phon) { try { await TajweedData.load(); } catch (_) { toast('The tajweed data could not load. Check your connection and try again.', 'bad'); this.stop(false); return; } }
     if (!this.active) return;
     this.nextId = this.expected[0] && this.expected[0].id;
     paintWords();
@@ -1128,10 +1143,12 @@ const rec = {
     this.expected = []; this.ids = new Set(); this.status = new Map();
     this.carried = this.fin = this.interim = '';
     this.announced = new Set(); this.curKey = ''; this.nextId = null; this.lastPos = 0; this.done = false; this.feeding = null;
+    this.phon = useQuranModel(); this.H = []; this.P = new Set(); this.hSkip = 0; this.errors = new Map();
     this.active = true;
     updateControls();
     $('#heardText').textContent = 'Start reciting from any ayah…';
-    Finder.load().catch(() => { toast('The search index could not load. Check your connection.', 'bad'); this.stop(false); });
+    if (this.phon) TajweedData.load().catch(() => { toast('The tajweed data could not load. Check your connection.', 'bad'); this.stop(false); });
+    else Finder.load().catch(() => { toast('The search index could not load. Check your connection.', 'bad'); this.stop(false); });
     this.listen();
     try { navigator.wakeLock && navigator.wakeLock.request('screen').then(l => { this.wake = l; }).catch(() => {}); } catch (_) {}
   },
@@ -1150,6 +1167,21 @@ const rec = {
     this.from = [w.s, w.a]; this.fromPos = w.pos;
     this.nextPage = Q.ayahPage(w.s, w.a); this.done = false;
     toast(`Found ${Q.ch(w.s).en} ${w.s}:${w.a}`);
+    try { await this.feed(80); } finally { this.detecting = false; }
+    if (this.active) this.update(false);
+  },
+
+  // Recite anywhere, with the phoneme model: find the ayah from the sounds heard.
+  async detectPh() {
+    if (this.detecting || this.H.length < 10) return;
+    const m = Tajweed.find(this.H.slice(-60));
+    if (!m) return;
+    const offset = Math.max(0, this.H.length - 60);
+    this.detecting = true;
+    this.auto = false; this.hSkip = offset + m.skip;
+    this.from = [m.s, m.a]; this.fromPos = m.pos;
+    this.nextPage = Q.ayahPage(m.s, m.a); this.done = false;
+    toast(`Found ${Q.ch(m.s).en} ${m.s}:${m.a}`);
     try { await this.feed(80); } finally { this.detecting = false; }
     if (this.active) this.update(false);
   },
@@ -1221,52 +1253,68 @@ const rec = {
 
   listenModel() {
     const eng = QuranSpeech.create({
-      onText: (fin, interim) => { if (this.r !== eng || !this.active) return; this.fin = fin; this.interim = interim; this.update(false); },
+      onUnits: (units, pauses) => { if (this.r !== eng || !this.active) return; this.H = units; this.P = pauses; this.update(false); },
       onState: (st, info) => {
         if (this.r !== eng || !this.active) return;
         const heard = $('#heardText');
-        const words = this.transcript().trim();
         if (st === 'loading') {
           const pct = info && info.total ? Math.round(info.loaded / info.total * 100) : 0;
-          heard.textContent = `Getting the Quran speech model ready${pct ? ` (${pct}%)` : ''}. You can start reciting.`;
-        } else if (st === 'checking') { $('#heard').classList.add('checking'); }
-        else if (st === 'listening' || st === 'ready') { $('#heard').classList.remove('checking'); if (!words) heard.textContent = this.auto ? 'Start reciting from any ayah…' : 'Listening…'; }
+          heard.textContent = `Getting the Quran speech model ready${pct ? ` (${pct}%)` : ''}…`;
+        } else if (st === 'listening' && !this.H.length) heard.textContent = this.auto ? 'Start reciting from any ayah…' : 'Listening…';
       },
       onError: msg => {
         if (this.r !== eng) return;
         const known = { 'not-allowed': 'Microphone access is blocked. Allow the microphone for this site in your browser settings.', 'audio-capture': 'No microphone was found.' }[msg];
         if (known) { toast(known, 'bad'); this.stop(false); return; }
-        // The model couldn't run here: fall back to the browser's recognizer.
-        if (SpeechRec) { toast('The Quran speech model couldn\u2019t start on this device, so the phone\u2019s own recognizer is being used.', 'bad'); settings.engine = 'browser'; saveSettings(); eng.abort(); if (this.active) this.listen(); }
-        else { toast('The Quran speech model couldn\u2019t start on this device.', 'bad'); this.stop(false); }
+        toast('The Quran speech model couldn\u2019t start on this device. Try again, or switch to the phone\u2019s recognizer in Settings.', 'bad');
+        this.stop(false);
       },
     });
     this.r = eng;
     eng.start().then(ok => { if (!ok && this.r === eng) this.stop(false); });
   },
 
+  // What the model heard, as phonetic Arabic (shows the harakat it heard).
+  heardText() {
+    const u = Tajweed.units();
+    return this.H.slice(-14).map(x => (u[x.id] ? u[x.id].str : '')).join('');
+  },
+  checkPh(final) {
+    const P = new Set(); this.P.forEach(p => { if (p >= this.hSkip) P.add(p - this.hSkip); });
+    return Tajweed.check(this.expected, this.H.slice(this.hSkip), P, { final, level: settings.checkLevel || 'tajweed' });
+  },
+
   transcript() { return `${this.carried} ${this.fin} ${this.interim}`; },
 
   apply(res) {
-    this.status = new Map();
-    this.expected.forEach((w, j) => { if (res.status[j]) this.status.set(w.id, res.status[j]); });
+    this.status = new Map(); this.errors = new Map();
+    this.expected.forEach((w, j) => { if (res.status[j]) this.status.set(w.id, res.status[j]); if (res.errors && res.errors[j]) this.errors.set(w.id, res.errors[j]); });
     this.lastPos = res.pos;
     this.nextId = this.active && this.expected[res.pos] ? this.expected[res.pos].id : null;
   },
 
   update(final) {
     if (!this.active) return;
-    const text = this.transcript();
-    const words = text.trim().split(/\s+/).filter(Boolean);
-    if (words.length) $('#heardText').textContent = words.slice(-8).join(' ');
-    if (this.auto) { this.detect(Matcher.tokenize(text)); return; }
-    if (this.detecting) return;
-    const hasInterim = !final && this.interim.trim().length > 0;
-    const res = Matcher.align(this.expected, Matcher.tokenize(text).slice(this.skip), { final, hasInterim });
+    let res;
+    if (this.phon) {
+      if (this.H.length) $('#heardText').textContent = this.heardText();
+      if (this.auto) { this.detectPh(); return; }
+      if (this.detecting) return;
+      res = this.checkPh(final);
+    } else {
+      const text = this.transcript();
+      const words = text.trim().split(/\s+/).filter(Boolean);
+      if (words.length) $('#heardText').textContent = words.slice(-8).join(' ');
+      if (this.auto) { this.detect(Matcher.tokenize(text)); return; }
+      if (this.detecting) return;
+      const hasInterim = !final && this.interim.trim().length > 0;
+      res = Matcher.align(this.expected, Matcher.tokenize(text).slice(this.skip), { final, hasInterim });
+    }
     this.apply(res);
     paintWords();
     res.status.forEach((s, j) => {
-      if ((s === 'wrong' || s === 'skip') && !this.announced.has(j)) { this.announced.add(j); announceMistake(this.expected[j], s); }
+      const key = j + ':' + s;
+      if ((s === 'wrong' || s === 'skip' || s === 'tajweed') && !this.announced.has(key)) { this.announced.add(key); announceMistake(this.expected[j], s, res.errors && res.errors[j]); }
     });
     const cur = this.expected[Math.min(res.pos, this.expected.length - 1)];
     if (cur && `${cur.s}:${cur.a}` !== this.curKey) { this.curKey = `${cur.s}:${cur.a}`; follow(cur.s, cur.a); }
@@ -1286,7 +1334,7 @@ const rec = {
       if (showSummary || r.busy) {
         updateControls();
         $('#heard').classList.add('checking');
-        r.stop().then(text => { $('#heard').classList.remove('checking'); this.fin = text; this.interim = ''; this.finish(showSummary); });
+        r.stop().then(out => { $('#heard').classList.remove('checking'); this.H = out.units; this.P = out.pauses; this.finish(showSummary); });
         return;
       }
       r.abort();
@@ -1299,10 +1347,11 @@ const rec = {
       this.auto = false;
       try { this.wake && this.wake.release(); } catch (_) {}
       updateControls();
-      if (showSummary) toast(Matcher.tokenize(this.transcript()).length ? 'Couldn\u2019t find that passage yet. Recite a few more words and try again.' : 'Nothing was heard. Check that the microphone is allowed.', 'bad');
+      const heardAny = this.phon ? this.H.length > 0 : Matcher.tokenize(this.transcript()).length > 0;
+      if (showSummary) toast(heardAny ? 'Couldn\u2019t find that passage yet. Recite a few more words and try again.' : 'Nothing was heard. Check that the microphone is allowed.', 'bad');
       return;
     }
-    const res = Matcher.align(this.expected, Matcher.tokenize(this.transcript()).slice(this.skip), { final: true });
+    const res = this.phon ? this.checkPh(true) : Matcher.align(this.expected, Matcher.tokenize(this.transcript()).slice(this.skip), { final: true });
     this.apply(res);
     paintWords();
     try { this.wake && this.wake.release(); } catch (_) {}
@@ -1314,19 +1363,22 @@ const rec = {
 
 function fmtDuration(ms) { const s = Math.round(ms / 1000); return s < 60 ? `${s} sec` : `${Math.floor(s / 60)} min ${s % 60} sec`; }
 
-function announceMistake(w, kind) {
-  if (!settings.mistakePopups) { vibrate(kind === 'wrong' ? [60, 40, 60] : 60); return; }
-  vibrate(kind === 'wrong' ? [60, 40, 60] : 60);
-  toast([`${w.s}:${w.a} ${kind === 'wrong' ? 'should be' : 'you skipped'} `, { ar: w.text }], 'bad');
+function announceMistake(w, kind, errs) {
+  vibrate(kind === 'tajweed' ? 40 : kind === 'wrong' ? [60, 40, 60] : 60);
+  if (!settings.mistakePopups) return;
+  const why = errs && errs.length ? ' · ' + errs[0].msg : '';
+  if (kind === 'skip') toast([`${w.s}:${w.a} you skipped `, { ar: w.text }], 'bad');
+  else toast([{ ar: w.text }, ` ${w.s}:${w.a}${why}`], kind === 'tajweed' ? 'warn' : 'bad');
 }
 
 function showSummaryFor(res) {
   const attempted = rec.expected.slice(0, res.pos);
   const ok = attempted.filter((_, j) => res.status[j] === 'ok').length;
   const mistakes = [];
-  attempted.forEach((w, j) => { const s = res.status[j]; if (s === 'wrong' || s === 'skip') mistakes.push({ w, s }); });
+  attempted.forEach((w, j) => { const s = res.status[j]; if (s === 'wrong' || s === 'skip' || s === 'tajweed') mistakes.push({ w, s, e: res.errors ? res.errors[j] : null }); });
   const wrong = mistakes.filter(m => m.s === 'wrong').length;
-  const skip = mistakes.length - wrong;
+  const taj = mistakes.filter(m => m.s === 'tajweed').length;
+  const skip = mistakes.length - wrong - taj;
   const body = $('#summaryBody');
   if (!attempted.length) {
     body.innerHTML = '<p>No recitation was heard. Check that the microphone is allowed, then tap the mic and start reciting.</p>';
@@ -1339,13 +1391,15 @@ function showSummaryFor(res) {
       <div class="stats">
         <div class="s-ok"><b>${ok}</b><span>Correct</span></div>
         <div class="s-bad"><b>${wrong}</b><span>Wrong</span></div>
+        ${rec.phon ? `<div class="s-taj"><b>${taj}</b><span>Tajweed</span></div>` : ''}
         <div class="s-skip"><b>${skip}</b><span>Skipped</span></div>
       </div>
       ${mistakes.length ? `<ul class="mistakes">${mistakes.map(m => `
         <li>
-          <span class="kind ${m.s}">${m.s === 'wrong' ? 'Wrong' : 'Skipped'}</span>
+          <span class="kind ${m.s}">${m.s === 'wrong' ? 'Wrong' : m.s === 'tajweed' ? 'Tajweed' : 'Skipped'}</span>
           <span class="ref">${m.w.s}:${m.w.a}</span>
           <span class="word" lang="ar">${esc(m.w.text)}</span>
+          ${m.e ? `<span class="why">${m.e.map(x => esc(x.msg)).join('<br>')}</span>` : ''}
           <button class="icon-btn" type="button" data-listen="${m.w.s}:${m.w.a}" aria-label="Hear ayah ${m.w.s}:${m.w.a}"><svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg></button>
         </li>`).join('')}</ul>` : '<p>No mistakes. Well done.</p>'}
       <div class="qibla-actions">
@@ -2101,6 +2155,8 @@ function initSettingsSheet() {
     $('#setHide').checked = settings.hide;
     $('#setListenRepeat').checked = settings.listenRepeat;
     $('#setPopups').checked = settings.mistakePopups;
+    $('#setLevel').value = settings.checkLevel || 'tajweed';
+    $('#setLevel').disabled = !(window.QuranSpeech && QuranSpeech.supported()) || settings.engine === 'browser';
     $('#setEngine').value = useQuranModel() || settings.engine !== 'browser' ? 'quran' : 'browser';
     $('#setEngine').querySelector('[value=quran]').disabled = !(window.QuranSpeech && QuranSpeech.supported());
     $('#setEngine').querySelector('[value=browser]').disabled = !SpeechRec;
@@ -2123,7 +2179,8 @@ function initSettingsSheet() {
   $('#setListenRepeat').addEventListener('change', e => { settings.listenRepeat = e.target.checked; saveSettings(); });
   $('#setPopups').addEventListener('change', e => { settings.mistakePopups = e.target.checked; saveSettings(); });
   $('#installBtn').addEventListener('click', () => { $('#settingsSheet').close(); install.start(); });
-  $('#setEngine').addEventListener('change', e => { settings.engine = e.target.value; saveSettings(); if (rec.active) rec.stop(false); if (settings.engine === 'quran' && window.QuranSpeech) QuranSpeech.preload(); });
+  $('#setLevel').addEventListener('change', e => { settings.checkLevel = e.target.value; saveSettings(); if (rec.active && rec.phon) rec.update(false); });
+  $('#setEngine').addEventListener('change', e => { $('#setLevel').disabled = e.target.value === 'browser'; settings.engine = e.target.value; saveSettings(); if (rec.active) rec.stop(false); if (settings.engine === 'quran' && window.QuranSpeech) QuranSpeech.preload(); });
   const open = () => { sync(); $('#settingsSheet').showModal(); };
   $('#settingsBtn').addEventListener('click', open);
   $('#readerSettings').addEventListener('click', open);
@@ -2183,6 +2240,12 @@ $('#micBtn').addEventListener('click', () => {
     if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) { dx > 0 ? mushaf.next() : mushaf.prev(); return; }
     if (Math.abs(dx) > 10 || Math.abs(dy) > 10) return;
     const word = e.target.closest('[data-s]');
+    // Tap a marked word to see what was wrong with it.
+    if (word && rec.errors.size) {
+      const hit = [...wordEls.values()].find(r => r.els.includes(word));
+      const errs = hit && rec.errors.get(hit.w.id);
+      if (errs) { toast([{ ar: hit.w.text }, ' ' + errs.map(x => x.msg).join(' · ')], errs.some(x => x.sev === 'wrong') ? 'bad' : 'warn'); return; }
+    }
     if (word && rec.active) {
       // Memorization mode: tap a hidden word to peek at it for a moment.
       const id = `${word.dataset.s}:${word.dataset.a}:${[...wordEls.values()].find(r => r.els.includes(word))?.w.pos}`;

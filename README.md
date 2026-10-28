@@ -19,7 +19,7 @@ A phone-friendly web app (installable to the home screen) with:
 Everything the app needs is inside this folder (Quran pages, translation, tafsir, hadith, all 57 books and the speech model), so GitHub can host it on its own, free, with no proxy and no usage credits.
 
 1. Make a free account at github.com.
-2. Install **GitHub Desktop** (free) from desktop.github.com and sign in. The app is about 920 MB and 1,100 files, which is too much for the website's upload box.
+2. Install **GitHub Desktop** (free) from desktop.github.com and sign in. The app is about 900 MB and 1,100 files, which is too much for the website's upload box.
 3. In GitHub Desktop: **File → Add Local Repository**, choose the `tilawah` folder, and click **create a repository** when it offers. Name it `tilawah`, then **Create Repository**.
 4. Click **Publish repository**, untick **Keep this code private** (free GitHub Pages sites must be public), then **Publish**. The first upload takes a while.
 5. On github.com, open the `tilawah` repository → **Settings** → **Pages**. Under **Branch**, choose `main` and `/ (root)`, then **Save**.
@@ -28,7 +28,7 @@ Everything the app needs is inside this folder (Quran pages, translation, tafsir
 
 To update the app later: replace the files in the folder, then in GitHub Desktop type a short summary, click **Commit to main**, then **Push origin**. The installed app picks up the new version the next time it's opened online.
 
-GitHub Pages sites can be up to 1 GB; this app uses about 920 MB of that.
+GitHub Pages sites can be up to 1 GB; this app uses about 900 MB of that.
 
 ## Run it on a computer
 
@@ -48,11 +48,19 @@ Change `APP_NAME` in `app.js`, the `<title>` in `index.html`, and `name`/`short_
 
 ## How the recitation check works, and its limits
 
-**Quran speech model (default).** Tarteel AI's `whisper-base-ar-quran`, a speech model trained on Quran recitation, runs on the phone itself (in `speech-worker.js`, with ONNX Runtime through Transformers.js, both in `vendor/transformers`). The app cuts your recitation at natural pauses and checks each piece, so marks appear a moment after you pause rather than word by word. The model (about 80 MB, in `models/whisper-base-quran`) downloads the first time you recite and is kept on the phone; after that it works offline and no audio leaves the device.
+**Quran phoneme model (default).** A streaming speech model trained on Quran recitation runs on the phone itself (`speech-worker.js`, with ONNX Runtime Web in `vendor/ort`). It doesn't guess words: it writes down the sounds it hears, every haraka, shaddah, madd length, ghunnah, ikhfaʾ and qalqalah, about twice a second, so mistakes can't be "auto-corrected" away. The model (about 73 MB, `models/quran-phoneme`) downloads the first time you recite and is kept on the phone; after that it works offline and no audio leaves the device.
 
-**Phone's built-in recognizer** (Settings → Reciting → Recitation checking). Faster, word by word, but it's a general Arabic recognizer (on Chrome, Google's service), so it handles tajweed and elongation less well, and it needs internet.
+**Tajweed checker** (`tajweed.js`). Every word of the Quran has a reference pronunciation in Hafs ʿan ʿAsim (`data/quran-ph.json`), worked out by the open quran-transcript phonetizer: as read in continuous recitation, when you stop on the word (waqf) and when you start from it (ibtidaʾ), with each madd's type. Word by word, the app compares what was heard with it and names the mistake:
 
-`matcher.js` compares what was heard with the expected words of the mushaf: small spelling differences, how a word sounds (long vowels, silent lam, stopping forms), repeated phrases, extra words, words cut in the wrong place, skipped words and whole skipped ayahs. It catches wrong, missing and skipped words; it does not judge tajweed.
+- **Wrong** (red): a wrong or missing letter, a wrong haraka, a missing or extra shaddah.
+- **Tajweed** (amber, wavy line): a madd too short or too long for its type (natural 2; munfasil 2, 4 or 5; muttasil 4–6; ʿarid 2, 4 or 6; leen 2, 4 or 6; lazim 6), ghunnah, ikhfaʾ, idgham or qalqalah not applied.
+- **Skipped** (gold): words, phrases or ayahs left out.
+
+Repeating is fine: going back over a word or phrase replaces the earlier attempt. Stutters, an opening taʿawwudh or basmala, stopping and starting anywhere, and joining ayahs are all allowed. Tap a marked word to see what was wrong. Settings → Reciting → What to check chooses all of this, letters and harakat only, or words only.
+
+When the model is unsure (it heard the expected sound as a close second choice), the word is not marked, so marks are rarely false alarms. In tests on professional reciters 1–4% of words were marked; on learners' recordings, 82% of recordings that a teacher had marked as wrong were also marked here.
+
+**Phone's built-in recognizer** (Settings → Reciting → Recitation checking). A general Arabic recognizer that checks words only, and needs internet.
 
 ## Data sources
 
@@ -62,7 +70,8 @@ No Quran text, tafsir or hadith is written or edited by hand anywhere in the app
 - **Tafsir Ibn Kathir (English, abridged):** saved in `data/tafsir/` exactly as published by the Quran.com API, with its headings, paragraphs and Arabic quotations. The app only removes code when showing it; it never changes the text.
 - **English translation of the Quran:** Sahih International, saved in `data/translation/` exactly as published by the Al Quran Cloud API.
 - **Bismillah:** drawn from the outline of the Bismillah glyph in the King Fahd Complex font itself (`mushaf/madinah/bismillah.json`), because Safari draws that very wide glyph with stray strokes.
-- **Speech model:** `tarteel-ai/whisper-base-ar-quran` (Apache 2.0), converted for phones as described in `models/whisper-base-quran/README.md`. Runtime: Transformers.js and ONNX Runtime Web (Apache 2.0 / MIT).
+- **Speech model:** Quran-Lab's Quran phoneme Zipformer (`models/quran-phoneme/README.md`), under the Quran-Lab No-Profit License: **the app must stay free** (no sales, subscriptions, ads or other revenue). Runtime: ONNX Runtime Web (MIT).
+- **Tajweed reference:** generated with quran-transcript (MIT, github.com/obadx/quran-transcript) by `tools/build_tajweed_ref.py` and `tools/build_tajweed_ref_edges.py`; Hafs ʿan ʿAsim, madd 4/4/4/4 as the reference, with the other permitted lengths accepted.
 - **Fonts:** Figtree and Amiri Quran (SIL Open Font License), in `fonts/`.
 - **Hadith:** the nine books and the selections, copied from Sunnah.com's pages (Arabic, English, chapter headings, grades and references as shown there). Hadith that Sunnah.com has no English for, such as all of Sunan ad-Darimi, are shown in Arabic only. `tools/build_hadith.py` turns a Sunnah.com export into the files in `hadith/`.
 - **Recitation audio:** EveryAyah.com (per-ayah files) and MP3Quran.net (full-surah recordings, cut into ayahs with MP3Quran's published ayah timings, used for Saad al-Ghamdi and Raad Muhammad al-Kurdi).

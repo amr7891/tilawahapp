@@ -238,8 +238,12 @@
     <label class="toggle"><input id="setListenRepeat" type="checkbox"><span><b>Listen and repeat</b><small>The reciter plays an ayah, then the mic opens for you to repeat it</small></span></label>
     <h3 class="set-group">Reciting</h3>
     <label class="field"><span>Recitation checking</span>
-      <select id="setEngine"><option value="quran">Quran speech model (on this phone)</option><option value="browser">Phone’s built-in recognizer (online)</option></select>
-      <small class="field-note">The Quran model was trained on recitation, so it follows tajweed and elongation better. It downloads once (about 100 MB) the first time you recite.</small>
+      <select id="setEngine"><option value="quran">Quran phoneme model (on this phone)</option><option value="browser">Phone’s built-in recognizer (online)</option></select>
+      <small class="field-note">The Quran model hears every haraka, madd, ghunnah and qalqalah, live and offline. It downloads once (about 75 MB) the first time you recite.</small>
+    </label>
+    <label class="field"><span>What to check</span>
+      <select id="setLevel"><option value="tajweed">Letters, harakat and tajweed</option><option value="harakat">Letters and harakat</option><option value="words">Words only</option></select>
+      <small class="field-note">Tajweed covers madd lengths (Hafs ʿan ʿAsim), ghunnah, ikhfaʾ, idgham and qalqalah. Stopping and starting forms, repeats and an opening taʿawwudh or basmala are allowed.</small>
     </label>
     <label class="toggle"><input id="setHide" type="checkbox"><span><b>Memorization mode</b><small>Hide the words while you recite; each word appears once you say it</small></span></label>
     <label class="toggle"><input id="setPopups" type="checkbox"><span><b>Mistake pop-ups</b><small>Show the correct word when you make a mistake while reciting (otherwise the word is only coloured and the phone vibrates)</small></span></label>
@@ -292,6 +296,7 @@
 </dialog>
 
 <script src="matcher.js"></script>
+<script src="tajweed.js"></script>
 <script src="speech.js"></script>
 <script src="app.js"></script>
 </body>

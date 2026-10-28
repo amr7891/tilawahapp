@@ -5,15 +5,15 @@
 // - Books: each PDF is downloaded once, then read from the phone.
 // - Recitation audio streams from EveryAyah / MP3Quran (not from this site) and the
 //   ayahs you play are kept so they replay offline.
-const SHELL = 'tilawah-shell-v11';
+const SHELL = 'tilawah-shell-v12';
 const DATA = 'tilawah-data-v4';
 const BOOKS = 'tilawah-books-v1';
 const AUDIO = 'tilawah-audio-v1';
 const ASSETS = [
-  './', './index.html', './styles.css', './matcher.js', './app.js', './speech.js', './speech-worker.js', './manifest.webmanifest',
+  './', './index.html', './styles.css', './matcher.js', './app.js', './speech.js', './speech-worker.js', './fbank.js', './tajweed.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
   './fonts/fonts.css',
-  './mushaf/madinah/meta.json', './mushaf/madinah/bismillah.json', './mushaf/madinah/search.json', './mushaf/madinah/fonts/QCF4_QBSML.woff2', './hadith/index.json',
+  './mushaf/madinah/meta.json', './mushaf/madinah/bismillah.json', './mushaf/madinah/search.json', './mushaf/madinah/fonts/QCF4_QBSML.woff2', './hadith/index.json', './data/quran-ph.json',
 ];
 const KEEP = [SHELL, DATA, BOOKS, AUDIO];
 
@@ -69,9 +69,9 @@ self.addEventListener('fetch', e => {
   if (url.origin !== self.location.origin) return;
 
   if (/\/books\/.+\.pdf$/i.test(url.pathname)) { e.respondWith(cacheFirst(req, BOOKS)); return; }
-  if (/\/(mushaf|hadith|data|fonts|vendor)\//.test(url.pathname)) {
+  if (/\/(mushaf|hadith|data|fonts|vendor|models)\//.test(url.pathname)) {
     // Index files change between versions and are saved with the app files.
-    if (/(index|meta|search)\.json$/.test(url.pathname) || url.pathname.endsWith('fonts.css')) { e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req))); return; }
+    if (/(index|meta|search|quran-ph)\.json$/.test(url.pathname) || url.pathname.endsWith('fonts.css')) { e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req))); return; }
     e.respondWith(cacheFirst(req)); return;
   }
 
