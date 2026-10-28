@@ -459,7 +459,7 @@
   const KEEP_BACK = 15;
   function live(st, words, H, pauses, opts) {
     opts = opts || {};
-    if (st.p0 == null) Object.assign(st, { p0: 0, y0: 0, status: [], errors: [], flagged: new Map() });
+    if (st.p0 == null) Object.assign(st, { p0: 0, y0: 0, status: [], errors: [], flagged: new Map(), shown: new Map() });
     const P = new Set(); (pauses || []).forEach(q => { if (q >= st.y0) P.add(q - st.y0); });
     const stats = { eq: 0, unsure: 0 };
     const o = Object.assign({}, opts, { noOpener: st.p0 > 0, stats });
@@ -479,7 +479,11 @@
         const c = bad ? (st.flagged.get(i) || 0) + 1 : 0;
         if (c) st.flagged.set(i, c); else st.flagged.delete(i);
         if (bad && c < (opts.hold || 2)) { status[i] = 'ok'; errors[i] = null; }
+        else if (bad) st.shown.set(i, [status[i], errors[i]]);
       }
+    } else {
+      // A mark the reader has already seen stays in the final result.
+      st.shown.forEach(([x, e], i) => { if (i < pos && (!status[i] || status[i] === 'ok')) { status[i] = x; errors[i] = e; } });
     }
     // Settle the words well behind the reader.
     const k = r.pos - KEEP_BACK;

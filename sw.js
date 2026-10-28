@@ -5,12 +5,12 @@
 // - Books: each PDF is downloaded once, then read from the phone.
 // - Recitation audio streams from EveryAyah / MP3Quran (not from this site) and the
 //   ayahs you play are kept so they replay offline.
-const SHELL = 'tilawah-shell-v27';
+const SHELL = 'tilawah-shell-v28';
 const DATA = 'tilawah-data-v4';
 const BOOKS = 'tilawah-books-v1';
 const AUDIO = 'tilawah-audio-v1';
 const ASSETS = [
-  './', './index.html', './styles.css', './matcher.js', './app.js', './speech.js', './speech-worker.js', './fbank.js', './tajweed.js', './manifest.webmanifest',
+  './', './index.html', './styles.css', './matcher.js', './app.js', './speech.js', './speech-worker.js', './mic-worklet.js', './fbank.js', './tajweed.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
   './fonts/fonts.css',
   './mushaf/madinah/meta.json', './mushaf/madinah/bismillah.json', './mushaf/madinah/search.json', './mushaf/madinah/fonts/QCF4_QBSML.woff2', './hadith/index.json', './data/quran-ph.json',

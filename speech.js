@@ -44,9 +44,8 @@
       } else if (m.type === 'flushed' && flushWait) { const f = flushWait; flushWait = null; f(); }
     };
 
-    // Resample to 16 kHz. Usually the browser already does it (the audio context runs at
-    // 16 kHz); otherwise low-pass first (windowed sinc, cut at 7.6 kHz) so high sounds like
-    // the sibilants don't fold back into the speech band.
+    // Resample to 16 kHz, low-passing first (windowed sinc, cut at 7.6 kHz) so high sounds
+    // like the sibilants don't fold back into the speech band.
     let firTaps = null, firRate = 0, hist = new Float32Array(0), phase = 0;
     function down(input, inRate) {
       if (inRate === RATE) return new Float32Array(input);
@@ -85,18 +84,29 @@
           return false;
         }
         const AC = root.AudioContext || root.webkitAudioContext;
-        try { ctx = new AC({ sampleRate: RATE }); } catch (_) { ctx = new AC(); }
+        // The device's own rate (asking Safari for 16 kHz with a 48 kHz microphone is buggy on
+        // some iOS versions); down() resamples with a proper low-pass filter.
+        ctx = new AC();
         if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (_) {} }
         try { src = ctx.createMediaStreamSource(stream); }
         catch (_) { try { ctx.close(); } catch (e) {} ctx = new AC(); if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (e) {} } src = ctx.createMediaStreamSource(stream); }
         firRate = 0;
-        node = ctx.createScriptProcessor(4096, 1, 1);
         const mute = ctx.createGain(); mute.gain.value = 0;
-        node.onaudioprocess = ev => {
-          if (!running) return;
-          const d = down(ev.inputBuffer.getChannelData(0), ctx.sampleRate);
-          worker.postMessage({ type: 'audio', data: d }, [d.buffer]);
-        };
+        const send = block => { if (!running) return; const d = down(block, ctx.sampleRate); worker.postMessage({ type: 'audio', data: d }, [d.buffer]); };
+        // Capture on the audio thread (AudioWorklet), so a busy page never drops audio;
+        // older browsers fall back to a ScriptProcessor.
+        node = null;
+        if (ctx.audioWorklet && typeof AudioWorkletNode === 'function') {
+          try {
+            await ctx.audioWorklet.addModule('mic-worklet.js');
+            node = new AudioWorkletNode(ctx, 'mic-capture', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1, channelCountMode: 'explicit' });
+            node.port.onmessage = e => send(e.data);
+          } catch (_) { node = null; }
+        }
+        if (!node) {
+          node = ctx.createScriptProcessor(4096, 1, 1);
+          node.onaudioprocess = ev => send(ev.inputBuffer.getChannelData(0));
+        }
         src.connect(node); node.connect(mute); mute.connect(ctx.destination);
         running = true;
         return true;
@@ -115,7 +125,7 @@
       },
       abort() { running = false; this.release(); listeners.delete(listener); },
       release() {
-        try { node && (node.onaudioprocess = null); src && src.disconnect(); node && node.disconnect(); } catch (_) {}
+        try { if (node) { node.onaudioprocess = null; if (node.port) node.port.onmessage = null; } src && src.disconnect(); node && node.disconnect(); } catch (_) {}
         try { stream && stream.getTracks().forEach(t => t.stop()); } catch (_) {}
         try { ctx && ctx.close(); } catch (_) {}
         node = src = stream = ctx = null;
