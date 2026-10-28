@@ -31,6 +31,7 @@
   const NEAR = ['ءهعحغخ', 'غخقك', 'قكج', 'جشي', 'ضلد', 'ضظ', 'نرل', 'طدت', 'صسز', 'سثش', 'ظذثز', 'فثب', 'بمو', 'هة'];
   const near = (a, b) => a === b || NEAR.some(g => g.includes(a) && g.includes(b));
   const LETTER_NAMES = { 'ء': 'hamza', 'ب': 'ba', 'ت': 'ta', 'ث': 'tha', 'ج': 'jim', 'ح': 'ḥa', 'خ': 'kha', 'د': 'dal', 'ذ': 'dhal', 'ر': 'ra', 'ز': 'zay', 'س': 'sin', 'ش': 'shin', 'ص': 'ṣad', 'ض': 'ḍad', 'ط': 'ṭa', 'ظ': 'ẓa', 'ع': 'ʿayn', 'غ': 'ghayn', 'ف': 'fa', 'ق': 'qaf', 'ك': 'kaf', 'ل': 'lam', 'م': 'mim', 'ن': 'nun', 'ه': 'ha', 'و': 'waw', 'ي': 'ya' };
+  const MADD_FOR = { 'َ': 'ا', 'ُ': 'ۥ', 'ِ': 'ۦ' };
   const HARAKA_NAMES = { 'َ': 'fatḥa', 'ُ': 'ḍamma', 'ِ': 'kasra', '۪': 'imala', '': 'sukun' };
 
   let units = [], byStr = new Map(), maxLen = 1, blank = -1, ref = null, index = null;
@@ -447,6 +448,16 @@
       if (!final && !pauseAfter && y + cur.k + (opts.settle == null ? 4 : opts.settle) > H.length) break;
       const nw = W(p + 1);
       let errs = explain(w, cur.form, H, y, y + cur.k, Object.assign({}, opts, { pauseAfter, nextUnit: nw && !pauseAfter ? nw.wasl[0] : -1 }));
+      // A long vowel straight after the word's last short vowel, of the same kind (ۥۥ after
+      // ḍamma…), lengthens that vowel: e.g. ʿalā l- for ʿala l- (a madd kept before a sukun).
+      // It belongs to this word, not to the start of the next.
+      const lastU = units[cur.form.units[cur.form.units.length - 1]], ex = H[y + cur.k], exU = ex && units[ex.id];
+      if (!pauseAfter && nw && exU && exU.madd === 2 && lastU && lastU.haraka && MADD_FOR[lastU.haraka] === exU.maddChar
+          && sure(H, y + cur.k) >= 0.95 && !(pauses && pauses.has(y + cur.k + 1)) && units[nw.wasl[0]] && !units[nw.wasl[0]].madd
+          && (opts.level || 'tajweed') !== 'words' && !(opts.room > (opts.roomPoor == null ? 0.08 : opts.roomPoor))) {
+        errs = errs.concat([{ type: 'madd', sev: 'wrong', exp: '', got: exU.str, msg: `Extra long vowel at the end: keep the ${HARAKA_NAMES[lastU.haraka]} short` }]);
+        cur.k++;
+      }
       // The recording stopped in the middle of this word: don't judge the unsaid part.
       if (final && y + cur.k >= H.length && errs.length && errs.every(e => e.type === 'missing' || (e.type === 'madd' && !e.got))) {
         const said = cur.k / Math.max(1, cur.form.units.length);
