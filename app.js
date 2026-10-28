@@ -413,7 +413,9 @@ function getTimings(timed, s) {
     // worked out by aligning the recording with the Quran phoneme model; or MP3Quran's.
     const mp3q = () => fetchJSON(`https://www.mp3quran.net/api/v3/ayat_timing?surah=${s}&read=${timed.read}`).then(list => {
       const byAyah = {};
-      list.forEach(t => { if (t.ayah > 0) byAyah[t.ayah] = [t.start_time / 1000, t.end_time / 1000]; });
+      // MP3Quran's starts sit ~0.2-0.3 s early, in the previous ayah's last sound (measured
+      // against our own timings): start a little later.
+      list.forEach(t => { if (t.ayah > 0) byAyah[t.ayah] = [t.start_time / 1000 + (t.ayah > 1 ? 0.2 : 0), t.end_time / 1000 + 0.2]; });
       return byAyah;
     });
     const own = () => fetchJSON(`data/timings/${timed.local}/${s}.json`).then(list => { const byAyah = {}; list.forEach((t, i) => { byAyah[i + 1] = [t[0] / 1000, t[1] / 1000]; }); return byAyah; });
