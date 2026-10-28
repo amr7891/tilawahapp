@@ -30,6 +30,40 @@
   // always the model mishearing, not the reader.
   const NEAR = ['ءهعحغخ', 'غخقك', 'قكج', 'جشي', 'ضلد', 'ضظ', 'نرل', 'طدت', 'صسز', 'سثش', 'ظذثز', 'فثب', 'بمو', 'هة'];
   const near = (a, b) => a === b || NEAR.some(g => g.includes(a) && g.includes(b));
+  // Where each letter is said (makhraj), after Tajweed Rules of the Qur'an, ch. 2.
+  const MAKHRAJ = {
+    'ء': 'from the deepest part of the throat', 'ه': 'from the deepest part of the throat',
+    'ع': 'from the middle of the throat', 'ح': 'from the middle of the throat',
+    'غ': 'from the part of the throat closest to the mouth', 'خ': 'from the part of the throat closest to the mouth',
+    'ق': 'from the deepest part of the tongue against the soft palate',
+    'ك': 'from the back of the tongue against the palate, a little nearer the mouth than qaf',
+    'ج': 'from the middle of the tongue against the palate', 'ش': 'from the middle of the tongue against the palate', 'ي': 'from the middle of the tongue against the palate',
+    'ض': 'from the side of the tongue against the upper molars',
+    'ل': 'from the front edges and tip of the tongue against the gums of the upper front teeth',
+    'ن': 'from the tip of the tongue against the gums of the two upper front teeth',
+    'ر': 'from the tip of the tongue, with its top, near the place of nun',
+    'ط': 'from the top of the tip of the tongue against the gum line of the upper front teeth',
+    'د': 'from the top of the tip of the tongue against the gum line of the upper front teeth',
+    'ت': 'from the top of the tip of the tongue against the gum line of the upper front teeth',
+    'ص': 'from the tip of the tongue, just above the lower front teeth, leaving a small gap (a whistle)',
+    'ز': 'from the tip of the tongue, just above the lower front teeth, leaving a small gap (a whistle)',
+    'س': 'from the tip of the tongue, just above the lower front teeth, leaving a small gap (a whistle)',
+    'ظ': 'from the tip of the tongue against the edges of the upper front teeth',
+    'ذ': 'from the tip of the tongue against the edges of the upper front teeth',
+    'ث': 'from the tip of the tongue against the edges of the upper front teeth',
+    'ف': 'from the inside of the lower lip against the tips of the upper front teeth',
+    'و': 'by rounding the lips without closing them', 'م': 'by closing the lips', 'ب': 'by closing the lips firmly',
+  };
+  const HEAVY = 'خصضغطقظ', ITBAQ = 'صضطظ', HAMS = 'فحثهشخصسكت';
+  // How to say the expected letter instead of the one heard.
+  function howTo(exp, got) {
+    const tips = [];
+    if (MAKHRAJ[exp] && MAKHRAJ[exp] !== MAKHRAJ[got]) tips.push(`say it ${MAKHRAJ[exp]}`);
+    if (HEAVY.includes(exp) && !HEAVY.includes(got)) tips.push(ITBAQ.includes(exp) ? 'make it heavy: raise the back of the tongue and press it to the palate' : 'make it heavy: raise the back of the tongue');
+    else if (!HEAVY.includes(exp) && HEAVY.includes(got)) tips.push("keep it light: don't raise the back of the tongue");
+    if (HAMS.includes(exp) !== HAMS.includes(got) && MAKHRAJ[exp] === MAKHRAJ[got]) tips.push(HAMS.includes(exp) ? 'let the breath flow with it' : 'voice it, without breath running');
+    return tips.length ? ' — ' + tips.join('; ') : '';
+  }
   const LETTER_NAMES = { 'ء': 'hamza', 'ب': 'ba', 'ت': 'ta', 'ث': 'tha', 'ج': 'jim', 'ح': 'ḥa', 'خ': 'kha', 'د': 'dal', 'ذ': 'dhal', 'ر': 'ra', 'ز': 'zay', 'س': 'sin', 'ش': 'shin', 'ص': 'ṣad', 'ض': 'ḍad', 'ط': 'ṭa', 'ظ': 'ẓa', 'ع': 'ʿayn', 'غ': 'ghayn', 'ف': 'fa', 'ق': 'qaf', 'ك': 'kaf', 'ل': 'lam', 'م': 'mim', 'ن': 'nun', 'ه': 'ha', 'و': 'waw', 'ي': 'ya' };
   const MADD_FOR = { 'َ': 'ا', 'ُ': 'ۥ', 'ِ': 'ۦ' };
   const HARAKA_NAMES = { 'َ': 'fatḥa', 'ُ': 'ḍamma', 'ِ': 'kasra', '۪': 'imala', '': 'sukun' };
@@ -37,7 +71,7 @@
   let units = [], byStr = new Map(), maxLen = 1, blank = -1, ref = null, index = null;
 
   function describe(str) {
-    const u = { str, base: '', haraka: '', madd: 0, maddChar: '', ghunnah: false, qalqala: str.includes('ڇ'), shadda: false };
+    const u = { str, base: '', haraka: '', madd: 0, maddChar: '', ghunnah: false, qalqala: str.includes('ڇ'), shadda: false, sakt: str.includes('ۜ') };
     const chars = [...str];
     if (chars.every(c => MADD.includes(c))) { u.madd = chars.length; u.maddChar = chars[0]; u.base = chars[0]; return u; }
     for (const c of chars) {
@@ -269,7 +303,7 @@
         } else if (xu.madd && !yu.madd) {
           e = { type: 'letter', sev: 'wrong', exp: xu.str, got: yu.str, msg: `Expected a long vowel, heard ${yu.str}` };
         } else {
-          e = { type: 'letter', sev: 'wrong', exp: xu.str, got: yu.str, msg: `Letter: ${LETTER_NAMES[xu.letter] || xu.str}, not ${LETTER_NAMES[yu.letter] || yu.str}` };
+          e = { type: 'letter', sev: 'wrong', exp: xu.str, got: yu.str, msg: `Letter: ${LETTER_NAMES[xu.letter] || xu.str}, not ${LETTER_NAMES[yu.letter] || yu.str}${xu.letter && yu.letter ? howTo(xu.letter, yu.letter) : ''}` };
           if ((poor || !(xu.letter && yu.letter && near(xu.letter, yu.letter))) && sure(H, o.y) < 0.98) e.weak = true;
         }
       } else if (o.op === 'del') {
@@ -277,7 +311,10 @@
         if (edgeMerge(o)) continue;
         low = sure(H, o.y) < ms || sure(H, o.y - 1) < ms; var conf = Math.min(sure(H, o.y), sure(H, o.y - 1));
         if (atEnd && (W.last || opts.pauseAfter) && (xu.madd || !xu.base)) continue;
-        if (xu.madd) {
+        // Sakt (a short stop without breath: ʿiwajā ۜ qayyiman, marqadinā ۜ hādhā, man ۜ rāq, bal ۜ rāna)
+        // run through and merged into the next word.
+        if (xu.sakt) e = { type: 'sakt', sev: 'tajweed', exp: xu.str, got: '', msg: "Sakt: stop briefly here without taking a breath, then go on; don't merge into the next word" };
+        else if (xu.madd) {
           const ok = rule && MADD_OK[rule] ? MADD_OK[rule] : [xu.madd];
           e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: '', msg: `${rule ? MADD_NAMES[rule] : 'Madd'}: lengthen for ${counts(ok)}` };
         } else if (xu.letter === 'ل' && !xu.haraka && !xu.shadda && !SUN.includes(nextLetter(o.x))) e = { type: 'missing', sev: 'wrong', exp: xu.str, got: '', msg: 'Lām qamariyyah: pronounce the lam clearly' };
@@ -295,12 +332,19 @@
         if (yu.madd) {
           // A long vowel said where the vowel is short (inside the word, model sure) changes the word.
           if (yu.madd <= 2 && (sure(H, o.y) < 0.9 || o.x >= X.length || o.x === 0)) continue;
-          e = yu.madd <= 2 ? { type: 'madd', sev: 'wrong', exp: '', got: yu.str, msg: 'Extra long vowel: keep this vowel short' } : { type: 'madd', sev: 'tajweed', exp: '', got: yu.str, msg: 'Extra lengthening' };
+          const hidden = units[X[o.x]] && /[ں۾]/.test(units[X[o.x]].base);
+          e = hidden ? { type: 'madd', sev: 'tajweed', exp: '', got: yu.str, msg: `Ikhfāʾ: keep the vowel before the hidden ${units[X[o.x]].base.includes('ں') ? 'nun' : 'mim'} short; the ghunnah is on the ${units[X[o.x]].base.includes('ں') ? 'nun' : 'mim'}, not the vowel` }
+            : yu.madd <= 2 ? { type: 'madd', sev: 'wrong', exp: '', got: yu.str, msg: 'Extra long vowel: keep this vowel short' } : { type: 'madd', sev: 'tajweed', exp: '', got: yu.str, msg: 'Extra lengthening' };
         }
         else if ((yu.letter === 'ن' || yu.letter === 'م') && units[X[o.x]] && units[X[o.x]].shadda) {
           const l = units[X[o.x]].letter;
           e = { type: 'idgham', sev: 'tajweed', exp: '', got: yu.str, msg: 'لر'.includes(l) ? `Idghām without ghunnah: merge the nun completely into the ${lname(l)}` : yu.letter === 'م' && l === 'م' ? 'Idghām mithlayn: merge the mim into the next mim, with ghunnah' : `Idghām with ghunnah: merge the nun into the ${lname(l)}, keeping the ghunnah` };
-        } else if (yu.letter === 'ل' && !yu.haraka && units[X[o.x]] && units[X[o.x]].shadda && SUN.includes(units[X[o.x]].letter)) e = { type: 'idgham', sev: 'wrong', exp: '', got: yu.str, msg: `Lām shamsiyyah: don't say the lam; double the ${lname(units[X[o.x]].letter)}` };
+        } else if (yu.letter === 'ل' && !yu.haraka && units[X[o.x]] && units[X[o.x]].shadda && SUN.includes(units[X[o.x]].letter)) {
+          const l = units[X[o.x]].letter;
+          e = o.x === 0 && 'رل'.includes(l)
+            ? { type: 'idgham', sev: 'tajweed', exp: '', got: yu.str, msg: `Idghām of the lam sakinah: merge the lam into the ${lname(l)} (as in qur-rabbi)` }
+            : { type: 'idgham', sev: 'wrong', exp: '', got: yu.str, msg: `Lām shamsiyyah: don't say the lam; double the ${lname(l)}` };
+        }
         else if (heardMaybe(H, o.y, -1, 1)) continue;
         else e = { type: 'extra', sev: 'wrong', exp: '', got: yu.str, msg: `Extra sound: ${yu.str}`, weak: sure(H, o.y) < 0.9 };
       }
