@@ -5,7 +5,7 @@
 // - Books: each PDF is downloaded once, then read from the phone.
 // - Recitation audio streams from EveryAyah / MP3Quran (not from this site) and the
 //   ayahs you play are kept so they replay offline.
-const SHELL = 'tilawah-shell-v55';
+const SHELL = 'tilawah-shell-v56';
 const DATA = 'tilawah-data-v4';
 const BOOKS = 'tilawah-books-v1';
 const AUDIO = 'tilawah-audio-v1';

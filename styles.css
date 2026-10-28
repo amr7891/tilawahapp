@@ -803,3 +803,14 @@ input, textarea, select { font-size: 16px; }
 .brow .info { gap: 1px; }
 .brow .info .brow-ar { margin: 0; line-height: 1.35; }
 .ar-chip-inline { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0 0 5px; box-sizing: border-box; border-radius: 5px; font-size: 15px; line-height: 1; vertical-align: -5px; }
+/* Arabic reader: highlights and bookmarks */
+.arb [data-b] { cursor: pointer; border-radius: 6px; transition: background .15s; }
+.arb .sel { outline: 2px solid var(--accent); outline-offset: 3px; }
+.arb .hl-yellow { background: rgba(245, 197, 66, .35); } .arb .hl-green { background: rgba(76, 175, 120, .28); }
+.arb .hl-blue { background: rgba(80, 150, 230, .26); } .arb .hl-pink { background: rgba(232, 110, 160, .26); }
+.arb .bm { border-right: 3px solid var(--accent); padding-right: 8px; }
+.arb-tools { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 30; display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.18); }
+.arb-tools .hl-swatches { display: flex; gap: 6px; }
+.arb-tools .sw { width: 28px; height: 28px; border-radius: 50%; border: 0; }
+.arb-tools .icon-btn.on { color: var(--accent); }
+.arb-tools .icon-btn.on svg { fill: currentColor; }

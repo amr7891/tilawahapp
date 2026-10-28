@@ -590,6 +590,7 @@ function showView(name) {
   $('#reader').hidden = name !== 'mushaf';
   $('#pdfReader').hidden = name !== 'pdf';
   if (name !== 'pdf') pdfReader.close();
+  if ($('#arbBar')) $('#arbBar').hidden = true;
   $('.app').classList.toggle('immersive', name === 'mushaf' || name === 'pdf');
   $('#backBtn').hidden = name !== 'surah';
   $('#toMushafBtn').hidden = name !== 'surah';
@@ -1905,6 +1906,13 @@ function savedItems() {
   Object.entries(highlights()).forEach(([k, color]) => { const [s, a] = k.split(':').map(Number); items.push({ kind: 'hl', rm: ['highlights', k], t: 0, color, href: `#page-${Q.ayahPage(s, a)}`, sel: k, title: `${Q.ch(s).en} ${k}`, sub: 'Highlighted ayah', group: 'Ayahs' }); });
   Object.entries(notes.ayah()).forEach(([k, n]) => { const [s, a] = k.split(':').map(Number); items.push({ kind: 'anote', rm: ['ayahNotes', k], note: true, t: n.t, href: `#page-${Q.ayahPage(s, a)}`, sel: k, title: `${Q.ch(s).en} ${k}`, sub: n.text, group: 'Quran' }); });
   for (let i = 0; i < localStorage.length; i++) {
+    const am = (localStorage.key(i) || '').match(/^tl:(arMarks|arHl):(.+)$/);
+    if (!am) continue;
+    const slug = am[2], name = store.get('arTitle:' + slug, slug), key = am[1] + ':' + slug;
+    if (am[1] === 'arMarks') store.get(key, []).forEach(m => items.push({ kind: 'bpage', rm: [key, x => x.p === m.p && x.b === m.b], t: m.t || 0, href: `#ar-${slug}-${m.p}-b${m.b}`, title: m.text || 'Bookmark', sub: name, group: name }));
+    else { const ts = store.get('arHlT:' + slug, {}); Object.entries(store.get(key, {})).forEach(([k, color]) => { const [p, b] = k.split(':'); const v = ts[k] || [0, '']; items.push({ kind: 'bhl', rm: [key, k], t: v[0], color, href: `#ar-${slug}-${p}-b${b}`, title: v[1] || 'Highlight', sub: name, book: name, group: name }); }); }
+  }
+  for (let i = 0; i < localStorage.length; i++) {
     const lk = localStorage.key(i) || '';
     const m = lk.match(/^tl:(pdfMarks|pdfHl|pdfNotes):(.+):(\d+)$/);
     if (!m) continue;
@@ -2519,15 +2527,18 @@ const arReader = {
     let blocks;
     try { blocks = await (await fetch(`arbooks/${slug}/p${part}.json`)).json(); }
     catch (_) { box.innerHTML = '<p class="empty">This part of the book could not load. Check your connection and try again.</p>'; return; }
-    const tocHere = idx.toc.filter(t => t[2] === part);
+    const hl = store.get('arHl:' + slug, {}), marks = new Set(store.get('arMarks:' + slug, []).map(m => m.p + ':' + m.b));
+    store.set('arTitle:' + slug, idx.title);
     box.innerHTML = `
       <div class="arb-bar">
         <a class="btn small" href="#ar-${slug}">Contents</a>
         <span class="arb-pos">Part ${part + 1} of ${idx.parts}</span>
         <span class="arb-size"><button type="button" class="icon-btn" data-arb-size="-1" aria-label="Smaller text">A−</button><button type="button" class="icon-btn" data-arb-size="1" aria-label="Larger text">A+</button></span>
       </div>
-      <article class="arb" dir="rtl" lang="ar" style="--arb-size:${this.size()}px">${blocks.map(([l, t], i) => l
-        ? `<h${l + 2} class="arb-h" data-b="${i}" id="arb-${i}">${esc(t)}</h${l + 2}>` : `<p data-b="${i}" id="arb-${i}">${esc(t)}</p>`).join('')}</article>
+      <article class="arb" dir="rtl" lang="ar" style="--arb-size:${this.size()}px">${blocks.map(([l, t], i) => {
+        const k = part + ':' + i, hc = hl[k], bm = marks.has(k), cls = (hc ? ' hl-' + hc : '') + (bm ? ' bm' : '');
+        return l ? `<h${l + 2} class="arb-h${cls}" data-b="${i}" id="arb-${i}">${esc(t)}</h${l + 2}>` : `<p class="${cls.trim()}" data-b="${i}" id="arb-${i}">${esc(t)}</p>`;
+      }).join('')}</article>
       <nav class="h-pager">
         ${part > 0 ? `<a class="btn" href="#ar-${slug}-${part - 1}">Previous part</a>` : '<span></span>'}
         ${part < idx.parts - 1 ? `<a class="btn primary" href="#ar-${slug}-${part + 1}">Next part</a>` : ''}
@@ -2544,6 +2555,7 @@ const arReader = {
     store.set('arPos:' + slug, [part, target || 0]);
     // Remember the place as the reader scrolls.
     this.els = [...box.querySelectorAll('.arb [data-b]')];
+    box.querySelector('.arb').addEventListener('click', e => { const el = e.target.closest('[data-b]'); if (el) this.select(el); });
     // Keep the next part ready for reading offline.
     if (part < idx.parts - 1) fetch(`arbooks/${slug}/p${part + 1}.json`).catch(() => {});
   },
@@ -2557,8 +2569,47 @@ const arReader = {
       if (cur) store.set('arPos:' + slug, [part, +cur.dataset.b]);
     }, 300);
   },
+  // Tap a paragraph: highlight it in a colour or bookmark it.
+  select(el) {
+    const prev = document.querySelector('.arb .sel'); if (prev) prev.classList.remove('sel');
+    if (this.selEl === el) { this.selEl = null; this.bar(false); return; }
+    this.selEl = el; el.classList.add('sel'); this.bar(true);
+  },
+  bar(show) {
+    let b = $('#arbBar');
+    if (!b) {
+      b = document.createElement('div'); b.id = 'arbBar'; b.className = 'arb-tools';
+      b.innerHTML = `<div class="hl-swatches">${['yellow', 'green', 'blue', 'pink'].map(c => `<button type="button" class="sw" data-hl="${c}" aria-label="Highlight ${c}"></button>`).join('')}</div>
+        <button type="button" class="icon-btn" data-arb-act="unhl" aria-label="Remove highlight"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button type="button" class="icon-btn" data-arb-act="mark" aria-label="Bookmark"><svg viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4z"/></svg></button>
+        <button type="button" class="icon-btn" data-arb-act="copy" aria-label="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`;
+      document.body.append(b);
+      b.addEventListener('click', e => {
+        const el = this.selEl; if (!el || !el.isConnected) { this.bar(false); return; }
+        const k = this.part + ':' + el.dataset.b, sw = e.target.closest('[data-hl]'), act = e.target.closest('[data-arb-act]');
+        const hl = store.get('arHl:' + this.slug, {});
+        el.className = el.className.replace(/\s*hl-\w+/g, '');
+        if (sw) { hl[k] = sw.dataset.hl; el.classList.add('hl-' + sw.dataset.hl); store.set('arHl:' + this.slug, hl); }
+        else if (act && act.dataset.arbAct === 'unhl') { delete hl[k]; store.set('arHl:' + this.slug, hl); }
+        else if (act && act.dataset.arbAct === 'mark') {
+          let ms = store.get('arMarks:' + this.slug, []);
+          const on = ms.some(m => m.p + ':' + m.b === k);
+          ms = on ? ms.filter(m => m.p + ':' + m.b !== k) : [{ p: this.part, b: +el.dataset.b, t: Date.now(), text: el.textContent.slice(0, 90) }].concat(ms);
+          store.set('arMarks:' + this.slug, ms); el.classList.toggle('bm', !on);
+          toast(on ? 'Bookmark removed.' : 'Bookmarked. It\u2019s in Saved.');
+          if (hl[k]) el.classList.add('hl-' + hl[k]);
+          return;
+        }
+        else if (act && act.dataset.arbAct === 'copy') { navigator.clipboard && navigator.clipboard.writeText(el.textContent).then(() => toast('Copied.')).catch(() => {}); if (hl[k]) el.classList.add('hl-' + hl[k]); return; }
+        const t = store.get('arHlT:' + this.slug, {}); if (hl[k]) t[k] = [Date.now(), el.textContent.slice(0, 90)]; else delete t[k]; store.set('arHlT:' + this.slug, t);
+        el.classList.remove('sel'); this.selEl = null; this.bar(false);
+      });
+    }
+    b.hidden = !show;
+    if (show && this.selEl) { const k = this.part + ':' + this.selEl.dataset.b; b.querySelector('[data-arb-act="mark"]').classList.toggle('on', store.get('arMarks:' + this.slug, []).some(m => m.p + ':' + m.b === k)); }
+  },
   cover(slug, idx) {
-    this.els = null;
+    this.els = null; this.selEl = null; this.bar(false);
     setTitle(idx.title, idx.author);
     const pos = store.get('arPos:' + slug, null);
     const box = $('#library');
