@@ -413,11 +413,13 @@
   }
 
   // Best way to read H from y as word W (and the start of the next word).
-  function bestMatch(W, next, H, y, afterPause, final) {
+  function bestMatch(W, next, H, y, afterPause, final, stopAt) {
     let best = null;
     for (const form of formsOf(W, afterPause)) {
       const L = form.units.length;
-      for (let k = Math.max(1, L - 3); k <= L + 3 && y + k <= H.length; k++) {
+      // A word doesn't run on past a pause once most of it was said before the pause.
+      const lim = Infinity;
+      for (let k = Math.max(1, L - 3); k <= L + 3 && y + k <= H.length && y + k <= lim; k++) {
         let c = distance(form.units, H, y, y + k);
         if (next && y + k < H.length) {
           const nx = next.wasl.slice(0, 2), m = Math.min(2, H.length - y - k);
@@ -447,15 +449,18 @@
       return Object.assign(check(words, H, pauses, Object.assign({}, opts, { room })), { room });
     }
     const status = new Array(words.length).fill(null), errors = new Array(words.length).fill(null);
-    let p = 0, y = 0, afterPause = true, guard = 0;
+    let p = 0, y = 0, afterPause = true, guard = 0, lastStart = null;
+    const tried = new Set();   // restarts already taken (each is taken once)
     const W = j => (words[j] ? (words[j].free ? null : word(words[j].s, words[j].a, words[j].pos)) : null);
     // The same word is often tried at the same place many times over (looking back for a
     // repeat, ahead for a skip): work each one out once per check.
     const memo = new Map();
+    const pauseList = pauses ? [...pauses].sort((a, b) => a - b) : [];
+    const nextPause = yy => { for (const q of pauseList) if (q > yy) return q; return null; };
     const BM = (q, yy, ap) => {
       const key = q * 4194304 + yy * 2 + (ap ? 1 : 0);
       let m = memo.get(key);
-      if (m === undefined) { const w = W(q); m = w ? bestMatch(w, W(q + 1), H, yy, ap, final) : null; memo.set(key, m); }
+      if (m === undefined) { const w = W(q); m = w ? bestMatch(w, W(q + 1), H, yy, ap, final, nextPause(yy)) : null; memo.set(key, m); }
       return m && Object.assign({}, m);
     };
     // An opening taʿawwudh or basmala before the first ayah is not part of the check.
@@ -463,7 +468,8 @@
     if (!opts.noOpener && words.length) {
       // Al-Fatiha's basmala is its first ayah, so only the taʿawwudh is skipped before it.
       for (const k of (words[0].s === 1 && words[0].a === 1 ? ['0:1'] : ['0:1', '0:2'])) {
-        const ws = ayahWords(+k[0], +k[2]); if (!ws) continue;
+        const [ks, ka] = k.split(':').map(Number);
+        const ws = ayahWords(ks, ka); if (!ws) continue;
         const seq = [].concat(...ws.slice(0, -1).map(w => w.wasl));
         let best = null;
         for (const last of [ws[ws.length - 1].wasl, ws[ws.length - 1].waqf].filter(Boolean)) {
@@ -506,7 +512,30 @@
           const b = run(p - j, y, 3);
           if (b && b.norm < 0.25 && b.norm < here.norm - 0.2) { back = j; break; }
         }
-        if (back) { p -= back; ends.length = Math.min(ends.length, p); afterPause = true; continue; }
+        // After a pause, readers often go back to the start of the ayah (or further) and
+        // recite it again; the first word after the pause is often unclear. Compare more
+        // words, further back, and take the place that reads best.
+        // The restart may also have begun one word earlier, right after the pause, with a word
+        // that happens to come next in the text too (an ayah with وَإِذَا twice): try from there.
+        const starts = [];
+        if (afterPause) starts.push([p, y]);
+        if (lastStart && lastStart.afterPause && lastStart.p === p - 1) starts.push([p - 1, lastStart.y]);
+        if (!back) for (const [p1, y1] of starts) {
+          const here5 = run(p1, y1, 5);
+          let best = null;
+          for (let j = 1; j <= 30 && p1 - j >= 0; j++) {
+            if (!W(p1 - j)) continue;
+            const b = run(p1 - j, y1, 5);
+            if (b && b.used >= 3 && b.norm < 0.38 && (!here5 || b.norm < here5.norm - 0.15) && (!best || b.norm < best.norm - 0.02)) best = { j, norm: b.norm };
+          }
+          const key = (p1 - (best ? best.j : 0)) + ':' + y1;
+          if (best && !tried.has(key)) { tried.add(key); back = best.j + (p - p1); y = y1; break; }
+        }
+        if (back) {
+          p -= back; ends.length = Math.min(ends.length, p); afterPause = true; lastStart = null;
+          for (let i = p; i < status.length; i++) { status[i] = null; errors[i] = null; }   // judged again from here
+          continue;
+        }
         // Skipped ahead (a word, a phrase or an ayah)? Not if the next words line up right
         // after this word's sounds: then the word was said, only wrongly.
         const after = cur.norm > 0.3 && p + 1 < words.length ? run(p + 1, y + cur.k, 3) : null;
@@ -523,6 +552,7 @@
           if (nx && nx.norm < cur.norm - 0.3) { y++; continue; }
         }
       }
+      lastStart = { p, y, afterPause };
       const pauseAfter = !!(pauses && pauses.has(y + cur.k));
       // While still reciting, judge a word only once the next sounds have come in.
       if (!final && !pauseAfter && y + cur.k + (opts.settle == null ? 4 : opts.settle) > H.length) break;
@@ -575,7 +605,7 @@
      - the room (echo/noise) estimate carries over and is refined as more is heard;
      - a mark is shown only once it has held for two updates in a row (or the word is
        settled, or on the final check), so a mark doesn't flash up and vanish. */
-  const KEEP_BACK = 15;
+  const KEEP_BACK = 40;
   function live(st, words, H, pauses, opts) {
     opts = opts || {};
     if (st.p0 == null) Object.assign(st, { p0: 0, y0: 0, status: [], errors: [], flagged: new Map(), shown: new Map() });
@@ -605,6 +635,8 @@
       // A mark the reader has already seen stays in the final result.
       st.shown.forEach(([x, e], i) => { if (i < pos && (!status[i] || status[i] === 'ok')) { status[i] = x; errors[i] = e; } });
     }
+    // The reader went back (a repeat): marks shown for words ahead of them no longer stand.
+    if (!opts.final) for (const i of [...st.shown.keys()]) if (i >= pos) st.shown.delete(i);
     // Settle the words well behind the reader.
     const k = r.pos - KEEP_BACK;
     if (!opts.final && k > 0 && r.ends[k - 1] != null) {
