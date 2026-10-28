@@ -752,7 +752,7 @@ const mushaf = {
   next() { if (this.page < 604) this.show(this.page + 1, 'next'); else toast('This is the last page.'); },
   prev() { if (this.page > 1) this.show(this.page - 1, 'prev'); else toast('This is the first page.'); },
 
-  setChrome(on) { this.chrome = on; $('#reader').classList.toggle('chrome-off', !on); },
+  setChrome(on) { this.chrome = on; $('#reader').classList.toggle('chrome-off', !on); if (!on && this.hideSize) this.hideSize(); },
 
   select(key) {
     state.selected = key;
@@ -760,6 +760,8 @@ const mushaf = {
     bar.hidden = !key;
     $('#transCard').hidden = true;
     if (key) { const [s] = key.split(':'); $('#ayahBarRef').textContent = key; $('#ayahBarName').textContent = Q.ch(+s).en; this.setChrome(true); }
+    if (this.resetBar && (!key || key !== this.barKey)) this.resetBar();
+    this.barKey = key;
     this.syncAyahBar();
     paintWords();
   },
@@ -772,8 +774,9 @@ const mushaf = {
     $('#ayahMark span').textContent = marked ? 'Saved' : 'Bookmark';
     const noted = !!notes.ayah()[state.selected];
     $('#ayahNote').classList.toggle('on', noted);
-    $('#ayahNote span').textContent = noted ? 'Note ✓' : 'Note';
+    $('#ayahNote span').textContent = noted ? 'Edit note' : 'Note';
     const hl = highlights()[state.selected] || '';
+    $('#ayahMarkup').classList.toggle('on', noted || !!hl);
     document.querySelectorAll('#ayahBar [data-hl]').forEach(b => b.classList.toggle('active', b.dataset.hl === hl && !!hl));
   },
 
@@ -2593,43 +2596,59 @@ $('#micBtn').addEventListener('click', () => {
 (function wireReader() {
   const stage = $('#pageStage');
   let x0 = null, y0 = 0;
-  // Pinch to zoom the mushaf (two fingers).
-  const touches = new Map(); let pinch = null;
-  const dist = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
-  stage.addEventListener('pointerdown', e => {
-    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (touches.size === 2) { pinch = { d: dist(), z: Number(settings.mushafZoom) || 1, target: null }; x0 = null; return; }
-    x0 = e.clientX; y0 = e.clientY;
-  });
-  stage.addEventListener('pointermove', e => {
-    if (!touches.has(e.pointerId)) return;
-    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pinch && touches.size === 2) {
-      const z = Math.round(Math.min(2, Math.max(1, pinch.z * dist() / pinch.d)) * 4) / 4;
-      if (z !== pinch.target) {
-        pinch.target = z;
-        let h = $('#zoomHint'); if (!h) { h = document.createElement('div'); h.id = 'zoomHint'; h.className = 'zoom-hint'; document.body.append(h); }
-        h.textContent = z === 1 ? 'Full page' : Math.round(z * 100) + '%'; h.hidden = false;
-      }
-    }
-  });
-  const endTouch = e => {
-    touches.delete(e.pointerId);
-    if (pinch && touches.size < 2) {
-      const z = pinch.target; pinch = null; x0 = null;
-      const h = $('#zoomHint'); if (h) setTimeout(() => { h.hidden = true; }, 500);
-      if (z != null) setMushafZoom(z, true);
-    }
-  };
-  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => stage.addEventListener(t, endTouch));
-  ['gesturestart', 'gesturechange'].forEach(t => stage.addEventListener(t, e => e.preventDefault()));
+  stage.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; });
   stage.addEventListener('pointercancel', () => { x0 = null; });
+  const hint = text => { let h = $('#zoomHint'); if (!h) { h = document.createElement('div'); h.id = 'zoomHint'; h.className = 'zoom-hint'; document.body.append(h); } h.textContent = text; h.hidden = false; clearTimeout(h.t); h.t = setTimeout(() => { h.hidden = true; }, 700); };
+  // Touch: the page follows a sideways drag and turns on release (or on a quick flick);
+  // up-and-down is left to scrolling; two fingers pinch the size.
+  let g = null;
+  const pageEl = () => { const l = stage.querySelectorAll('.mpage'); return l[l.length - 1] || null; };
+  const tdist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  const settle = (el, x, done) => { if (!el) { done && done(); return; } el.style.transition = 'transform .18s ease-out'; el.style.transform = x ? `translateX(${x}px)` : ''; setTimeout(() => { if (!done) { el.style.transition = ''; } else done(); }, 180); };
+  stage.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) { if (g && g.dir === 'h') settle(pageEl(), 0); g = { pinch: true, d: tdist(e.touches), z: Number(settings.mushafZoom) || 1, target: null }; return; }
+    if (e.touches.length === 1 && !(g && g.pinch)) g = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now(), dir: null, dx: 0 };
+  }, { passive: true });
+  stage.addEventListener('touchmove', e => {
+    if (!g) return;
+    if (g.pinch) {
+      if (e.touches.length < 2) return;
+      e.preventDefault();
+      const z = Math.round(Math.min(2, Math.max(1, g.z * tdist(e.touches) / g.d)) * 4) / 4;
+      if (z !== g.target) { g.target = z; hint(z === 1 ? 'Full page' : Math.round(z * 100) + '%'); }
+      return;
+    }
+    const t = e.touches[0], dx = t.clientX - g.x, dy = t.clientY - g.y;
+    if (!g.dir) { if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) g.dir = 'h'; else if (Math.abs(dy) > 10) g.dir = 'v'; }
+    if (g.dir !== 'h') return;
+    e.preventDefault();
+    // Swiping right turns to the next page (as in a printed mushaf); resist past the first/last page.
+    const edge = (dx > 0 && mushaf.page >= 604) || (dx < 0 && mushaf.page <= 1);
+    g.dx = edge ? dx * 0.25 : dx;
+    const el = pageEl(); if (el) { el.style.transition = 'none'; el.style.transform = `translateX(${g.dx}px)`; }
+  }, { passive: false });
+  const endTouch = e => {
+    if (!g) return;
+    if (g.pinch) { if (e.touches.length < 2) { const z = g.target; g = null; if (z != null) setMushafZoom(z, true); } return; }
+    if (e.touches.length) return;
+    const G = g; g = null;
+    if (G.dir !== 'h') return;
+    x0 = null;   // not a tap
+    const el = pageEl(), dt = Math.max(1, performance.now() - G.t), v = G.dx / dt;
+    const go = (Math.abs(G.dx) > 70 || (Math.abs(G.dx) > 28 && Math.abs(v) > 0.35)) && !((G.dx > 0 && mushaf.page >= 604) || (G.dx < 0 && mushaf.page <= 1));
+    if (!go) { settle(el, 0); return; }
+    const w = stage.clientWidth;
+    settle(el, G.dx > 0 ? w : -w, () => { G.dx > 0 ? mushaf.next() : mushaf.prev(); });
+  };
+  stage.addEventListener('touchend', endTouch);
+  stage.addEventListener('touchcancel', e => { if (g && g.dir === 'h') settle(pageEl(), 0); g = null; });
+  ['gesturestart', 'gesturechange'].forEach(t => stage.addEventListener(t, e => e.preventDefault()));
   stage.addEventListener('pointerup', e => {
     if (x0 === null) return;
     const dx = e.clientX - x0, dy = e.clientY - y0;
     x0 = null;
-    // Swipe right for the next page, as pages turn in a printed mushaf.
-    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) { dx > 0 ? mushaf.next() : mushaf.prev(); return; }
+    // Mouse: drag right for the next page, as pages turn in a printed mushaf (touch is handled above).
+    if (e.pointerType !== 'touch' && Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) { dx > 0 ? mushaf.next() : mushaf.prev(); return; }
     if (Math.abs(dx) > 10 || Math.abs(dy) > 10) return;
     const word = e.target.closest('[data-s]');
     // Tap a marked word to see what was wrong with it.
@@ -2663,13 +2682,29 @@ $('#micBtn').addEventListener('click', () => {
   $('#readerGoto').addEventListener('click', () => openGoto('surah'));
   $('#readerSlider').addEventListener('change', e => mushaf.show(+e.target.value));
   $('#readerSlider').addEventListener('input', e => { $('#readerSub').textContent = `Page ${e.target.value} · Juz ${Q.meta ? Q.juzOfPage(+e.target.value) : ''}`; });
-  $('#mPlay').addEventListener('click', () => player.resumeOr(async () => { const [s, a] = await mushaf.startAyah(); player.play(s, a); }));
+  // Play: the selected ayah if one is selected (and not already the one playing), else resume or start the page.
+  $('#mPlay').addEventListener('click', () => {
+    if (state.selected && !(player.playing && player.key() === state.selected)) { const [s, a] = state.selected.split(':').map(Number); player.play(s, a); return; }
+    player.resumeOr(async () => { const [s, a] = await mushaf.startAyah(); player.play(s, a); });
+  });
+  // Mark: highlight colours and a note, shown only when asked for.
+  const markup = open => { $('#abMain').hidden = open; $('#abMarkup').hidden = !open; $('#ayahMarkup').setAttribute('aria-expanded', open); };
+  $('#ayahMarkup').addEventListener('click', () => markup(true));
+  $('#abBack').addEventListener('click', () => markup(false));
+  mushaf.resetBar = () => markup(false);
+  // Mushaf size: a small slider under the top bar.
+  const sizePop = $('#sizePop'), sizeBtn = $('#readerSize');
+  const showSize = on => { sizePop.hidden = !on; sizeBtn.setAttribute('aria-expanded', on); if (on) { $('#sizeSlider').value = settings.mushafZoom || 1; $('#sizeVal').textContent = Math.round((settings.mushafZoom || 1) * 100) + '%'; } };
+  sizeBtn.addEventListener('click', e => { e.stopPropagation(); showSize(sizePop.hidden); });
+  let sizeT;
+  $('#sizeSlider').addEventListener('input', e => { const z = +e.target.value; $('#sizeVal').textContent = Math.round(z * 100) + '%'; clearTimeout(sizeT); sizeT = setTimeout(() => setMushafZoom(z, true), 120); });
+  document.addEventListener('pointerdown', e => { if (!sizePop.hidden && !e.target.closest('#sizePop, #readerSize')) showSize(false); });
+  mushaf.hideSize = () => showSize(false);
   $('#mMic').addEventListener('click', async () => {
     if (rec.active) { rec.stop(true); return; }
     if (state.selected) { const [s, a] = state.selected.split(':').map(Number); mushaf.select(null); rec.start(s, a, { scope: 'open' }); }
     else rec.startAuto();
   });
-  $('#ayahPlay').addEventListener('click', () => { const [s, a] = state.selected.split(':').map(Number); player.play(s, a); });
   $('#ayahRecite').addEventListener('click', () => { const [s, a] = state.selected.split(':').map(Number); mushaf.select(null); rec.start(s, a, { scope: 'open' }); });
   const sel = () => state.selected.split(':').map(Number);
   $('#ayahText').addEventListener('click', () => showAyahPanel(...sel(), 'translation'));
