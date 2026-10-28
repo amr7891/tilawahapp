@@ -500,7 +500,8 @@ function follow(s, a) {
 /* ------------------------------------------------------------------ */
 
 function showView(name) {
-  if (state.view !== name) { player.stop(); rec.stop(false); }
+  // Recitation keeps playing on every screen (a small player shows); the mic stops.
+  if (state.view !== name) rec.stop(false);
   state.view = name;
   ['list', 'surah', 'library', 'qibla', 'saved'].forEach(v => { $('#view-' + v).hidden = v !== name; });
   $('#reader').hidden = name !== 'mushaf';
@@ -509,7 +510,6 @@ function showView(name) {
   $('.app').classList.toggle('immersive', name === 'mushaf' || name === 'pdf');
   $('#backBtn').hidden = name !== 'surah';
   $('#toMushafBtn').hidden = name !== 'surah';
-  $('#dock').hidden = name !== 'surah';
   const tab = ['surah', 'list', 'mushaf'].includes(name) ? 'quran' : name === 'pdf' ? 'library' : name;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   if (name !== 'mushaf' && name !== 'surah') resetWordEls();
@@ -1027,6 +1027,7 @@ const player = {
     this.end = opts.end != null ? opts.end : state.view === 'surah' ? Q.gi(s, Q.ch(s).ayahs) : Q.all.length - 1;
     this.once = !!opts.once;
     this.left = this.once ? 1 : Number(settings.repeat) || 1;
+    this.active = true;
     if (currentReciter().timed) monoFix.prime();   // a tap: the only time a phone lets audio processing start
     this.start();
   },
@@ -1097,8 +1098,9 @@ const player = {
     const old = this.audio; this.audio = el; old.pause();
     this.applySpeed();
   },
+  // active: a recitation is playing or paused (the small player shows on other screens)
   pause() { this.audio.pause(); this.playing = false; media.set('paused'); paintWords(); updateControls(); },
-  stop() { this.audio.pause(); this.playing = false; media.set('paused'); paintWords(); updateControls(); },
+  stop() { this.audio.pause(); this.playing = false; this.active = false; media.set('paused'); paintWords(); updateControls(); },
 
   resumeOr(startFn) {
     if (this.playing) { this.pause(); return; }
@@ -1885,6 +1887,22 @@ function updateControls() {
   $('#playerAyah').textContent = rec.active ? 'Listening to you'
     : player.gi >= 0 && player.key() ? `Ayah ${player.key()}` : c ? `${c.ayahs} ayahs` : '';
   if (rec.active && state.view === 'mushaf') mushaf.setChrome(true);
+  syncDock();
+  // Small player: which ayah is playing, then the reciter.
+  if ($('#dock').classList.contains('mini') && player.gi >= 0 && Q.meta) {
+    const [ps, pa] = Q.all[player.gi];
+    $('#reciterName').textContent = `${Q.ch(ps).en} ${ps}:${pa}`;
+    $('#playerAyah').textContent = reciterName();
+  }
+}
+// The player bar: always in the surah view; elsewhere (home, library, saved, qibla) a small
+// one while a recitation is playing or paused.
+function syncDock() {
+  const dock = $('#dock'); if (!dock) return;
+  const mini = !['surah', 'mushaf', 'pdf'].includes(state.view);
+  dock.hidden = !(state.view === 'surah' || (mini && player.active && player.gi >= 0));
+  dock.classList.toggle('mini', mini);
+  $('.app').classList.toggle('dock-on', mini && !dock.hidden);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2670,7 +2688,12 @@ $('#toMushafBtn').addEventListener('click', () => {
 });
 
 // Text view dock
-$('#dockReciter').addEventListener('click', openReciters);
+// In the small player (other screens) the title goes back to the ayah being recited.
+$('#dockReciter').addEventListener('click', () => {
+  if ($('#dock').classList.contains('mini') && player.gi >= 0) { const [s, a] = Q.all[player.gi]; pendingSelect = null; location.hash = settings.readMode === 'mushaf' ? `page-${Q.ayahPage(s, a)}` : `surah-${s}-${a}`; return; }
+  openReciters();
+});
+$('#dockClose').addEventListener('click', () => { player.stop(); syncDock(); });
 $('#playBtn').addEventListener('click', () => player.resumeOr(() => player.play(state.surahNum, surahView.visibleAyah())));
 $('#prevBtn').addEventListener('click', () => { if (!player.step(-1)) player.play(state.surahNum, Math.max(1, surahView.visibleAyah() - 1)); });
 $('#nextBtn').addEventListener('click', () => { if (!player.step(1)) player.play(state.surahNum, Math.min(Q.ch(state.surahNum).ayahs, surahView.visibleAyah() + 1)); });
