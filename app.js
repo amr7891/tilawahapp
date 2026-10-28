@@ -1021,7 +1021,7 @@ const player = {
   // in the mushaf it carries on through the Quran.
   play(s, a, opts = {}) {
     if (rec.active) rec.stop(false);
-    this.gi = Q.gi(s, a);
+    this.gi = Q.gi(s, a); this.bismFor = -1; this.inBism = false;
     this.end = opts.end != null ? opts.end : state.view === 'surah' ? Q.gi(s, Q.ch(s).ayahs) : Q.all.length - 1;
     this.once = !!opts.once;
     this.left = this.once ? 1 : Number(settings.repeat) || 1;
@@ -1048,6 +1048,10 @@ const player = {
       if (t !== this.token) return;
       this.span = times[a];
       if (!this.span) { fail(); return; }
+      // Ayah 1 of a surah (not Al-Fatiha or At-Tawbah): start from the top of the recording,
+      // with the reciter's basmala. Repeats of the ayah start at the ayah itself.
+      this.ayahSpan = this.span;
+      if (a === 1 && s !== 1 && s !== 9 && this.bismFor !== this.gi) { this.bismFor = this.gi; this.span = [0, this.span[1]]; }
       // A few recordings have one channel in opposite phase, which cancels the voice on a
       // phone speaker: play those surahs from one channel.
       this.use(await monoFix.needed(r.timed, s));
@@ -1067,7 +1071,10 @@ const player = {
     } else {
       this.span = null;
       this.use(false);
-      this.audio.src = this.url(this.gi);
+      // Ayah 1 of a surah (not Al-Fatiha or At-Tawbah): the reciter's basmala first.
+      this.inBism = a === 1 && s !== 1 && s !== 9 && this.bismFor !== this.gi;
+      if (this.inBism) this.bismFor = this.gi;
+      this.audio.src = this.inBism ? `${AUDIO_BASE}/${settings.reciter}/001001.mp3` : this.url(this.gi);
       this.audio.play().catch(fail);
       if (this.gi < this.end) { const n = new Audio(this.url(this.gi + 1)); n.preload = 'auto'; }
     }
@@ -1107,6 +1114,8 @@ const player = {
   },
 
   ended() {
+    if (this.inBism) { this.inBism = false; this.audio.src = this.url(this.gi); this.audio.play().catch(() => {}); return; }
+    if (this.ayahSpan && this.span && this.span !== this.ayahSpan) this.span = this.ayahSpan;
     if (--this.left > 0) { this.audio.currentTime = this.span ? this.span[0] : 0; this.audio.play().catch(() => {}); return; }
     if (this.once) { this.stop(); return; }
     const gi = this.gi, end = this.end;
