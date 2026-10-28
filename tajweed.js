@@ -416,8 +416,10 @@
           if (b && b.norm < 0.25 && b.norm < here.norm - 0.2) { back = j; break; }
         }
         if (back) { p -= back; ends.length = Math.min(ends.length, p); afterPause = true; continue; }
-        // Skipped ahead (a word, a phrase or an ayah)?
-        if (cur.norm > 0.3) {
+        // Skipped ahead (a word, a phrase or an ayah)? Not if the next words line up right
+        // after this word's sounds: then the word was said, only wrongly.
+        const after = cur.norm > 0.3 && p + 1 < words.length ? run(p + 1, y + cur.k, 3) : null;
+        if (cur.norm > 0.3 && !(after && after.norm < 0.2 && cur.norm < 0.75)) {
           let skip = 0, bestSkip = null;
           for (let j = 1; j <= 25 && p + j < words.length; j++) {
             if (!W(p + j)) continue;

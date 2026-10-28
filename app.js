@@ -1489,9 +1489,15 @@ const rec = {
   },
 
   // What the model heard, as phonetic Arabic (shows the harakat it heard).
+  // What the bar shows while you recite: the words you've just said (or, in memorization
+  // mode, only where you are), not the model's raw sounds.
   heardText() {
-    const u = Tajweed.units();
-    return this.H.slice(-14).map(x => (u[x.id] ? u[x.id].str : '')).join('');
+    if (this.auto || !this.expected.length) return 'Listening… recite from anywhere';
+    const p = Math.min(this.lastPos || 0, this.expected.length);
+    if (!p) { const [s, a] = this.from; return `Recite ${Q.ch(s).en} ${s}:${a}…`; }
+    const w = this.expected[p - 1];
+    if (settings.hide) return `${Q.ch(w.s).en} ${w.s}:${w.a}`;
+    return this.expected.slice(Math.max(0, p - 6), p).filter(x => x.s === w.s && x.a === w.a).map(x => x.text).join(' ');
   },
   checkPh(final) {
     const P = []; this.P.forEach(p => { if (p >= this.hSkip) P.push(p - this.hSkip); });
@@ -1591,10 +1597,16 @@ function showSummaryFor(res) {
   const attempted = rec.expected.slice(0, res.pos);
   const ok = attempted.filter((_, j) => res.status[j] === 'ok').length;
   const mistakes = [];
-  attempted.forEach((w, j) => { const s = res.status[j]; if (s === 'wrong' || s === 'skip' || s === 'tajweed') mistakes.push({ w, s, e: res.errors ? res.errors[j] : null }); });
+  attempted.forEach((w, j) => {
+    const s = res.status[j]; if (s !== 'wrong' && s !== 'skip' && s !== 'tajweed') return;
+    // Words skipped together in one ayah are one row.
+    const last = mistakes[mistakes.length - 1];
+    if (s === 'skip' && last && last.s === 'skip' && last.w.s === w.s && last.w.a === w.a && last.j === j - 1) { last.w = Object.assign({}, last.w, { text: last.w.text + ' ' + w.text }); last.j = j; last.n++; return; }
+    mistakes.push({ w, s, j, n: 1, e: res.errors ? res.errors[j] : null });
+  });
   const wrong = mistakes.filter(m => m.s === 'wrong').length;
   const taj = mistakes.filter(m => m.s === 'tajweed').length;
-  const skip = mistakes.length - wrong - taj;
+  const skip = mistakes.filter(m => m.s === 'skip').reduce((t, m) => t + m.n, 0);
   const body = $('#summaryBody');
   if (!attempted.length) {
     body.innerHTML = '<p>No recitation was heard. Check that the microphone is allowed, then tap the mic and start reciting.</p>';
@@ -1606,7 +1618,7 @@ function showSummaryFor(res) {
       <p>${esc(Q.ch(f.s).en)} ${f.s}:${f.a} to ${l.s}:${l.a} · <b>${pct}%</b> of words correct · ${fmtDuration(Date.now() - rec.startedAt)}</p>
       <div class="stats">
         <div class="s-ok"><b>${ok}</b><span>Correct</span></div>
-        <div class="s-bad"><b>${wrong}</b><span>Clear mistakes</span></div>
+        <div class="s-bad"><b>${wrong}</b><span>Mistakes</span></div>
         ${rec.phon ? `<div class="s-taj"><b>${taj}</b><span>Tajweed</span></div>` : ''}
         <div class="s-skip"><b>${skip}</b><span>Skipped</span></div>
       </div>
