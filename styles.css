@@ -630,7 +630,16 @@ button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -web
 .page-stage.scroll .mpage { margin: 0 auto; }
 .page-stage.scroll .page-status { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 @media (orientation: landscape) and (max-height: 520px) {
+  /* Phones held sideways: a slim tab row and a slim player, so the text gets the height. */
+  .tabs { padding-top: 2px; padding-bottom: calc(2px + env(safe-area-inset-bottom, 0px)); }
+  .tab { flex-direction: row; justify-content: center; gap: 6px; padding: 6px 4px; font-size: 13px; }
+  .tab svg { width: 18px; height: 18px; }
+  .dock { bottom: calc(38px + env(safe-area-inset-bottom, 0px)); padding-bottom: 4px; }
+  .dock-row { padding: 3px 6px 3px 4px; border-radius: 16px; }
+  .dock .mic { width: 42px; height: 42px; }
+  .dock .mic svg { width: 21px; height: 21px; }
   .ayah-bar { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  main { padding-bottom: 110px; }
   .trans-card { max-height: 62vh; }
   .heard { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
   .topbar { padding-top: max(6px, env(safe-area-inset-top, 0px)); }

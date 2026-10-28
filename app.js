@@ -306,8 +306,11 @@ const Q = {
   async surah(s) {
     const c = this.ch(s);
     const ds = [];
-    for (let p = c.pages[0]; p <= c.pages[1]; p++) ds.push(this.pageReady(p));
+    for (let p = c.pages[0]; p <= c.pages[1]; p++) ds.push(this.page(p));
     const pages = await Promise.all(ds);
+    // Show the surah once the first pages' fonts are in; the rest load behind it.
+    pages.forEach(d => d.fids.forEach(f => this.font(f).catch(() => {})));
+    await Promise.all(pages.slice(0, 2).flatMap(d => d.fids.map(f => this.font(f)))).catch(() => {});
     const ayahs = Array.from({ length: c.ayahs }, (_, i) => ({ n: i + 1, words: [], end: null }));
     let bism = null, head = null;
     pages.forEach(d => d.lines.forEach((line, li) => line.forEach(x => {
@@ -866,6 +869,7 @@ async function openSurah(n, ayahNum) {
   showView('surah');
   state.surahNum = n;
   state.surahData = null;
+  updateControls();
   $('#surahHead').innerHTML = '';
   $('#ayahs').innerHTML = '<div class="loading">Loading surah…</div>';
   try {
@@ -1320,7 +1324,7 @@ const rec = {
     this.expected = []; this.ids = new Set(); this.status = new Map();
     this.carried = this.fin = this.interim = '';
     this.announced = new Set(); this.curKey = ''; this.nextId = null; this.lastPos = 0;
-    this.phon = useQuranModel(); this.H = []; this.P = new Set(); this.hSkip = 0; this.errors = new Map();
+    this.phon = useQuranModel(); this.H = []; this.P = new Set(); this.hSkip = 0; this.errors = new Map(); this.liveSt = null;
     this.nextPage = Q.ayahPage(s, a); this.done = false; this.feeding = null;
     this.active = true;
     updateControls();
@@ -1344,7 +1348,7 @@ const rec = {
     this.expected = []; this.ids = new Set(); this.status = new Map();
     this.carried = this.fin = this.interim = '';
     this.announced = new Set(); this.curKey = ''; this.nextId = null; this.lastPos = 0; this.done = false; this.feeding = null;
-    this.phon = useQuranModel(); this.H = []; this.P = new Set(); this.hSkip = 0; this.errors = new Map();
+    this.phon = useQuranModel(); this.H = []; this.P = new Set(); this.hSkip = 0; this.errors = new Map(); this.liveSt = null;
     this.active = true;
     updateControls();
     $('#heardText').textContent = 'Start reciting from any ayah…';
@@ -1481,8 +1485,10 @@ const rec = {
     return this.H.slice(-14).map(x => (u[x.id] ? u[x.id].str : '')).join('');
   },
   checkPh(final) {
-    const P = new Set(); this.P.forEach(p => { if (p >= this.hSkip) P.add(p - this.hSkip); });
-    return Tajweed.check(this.expected, this.H.slice(this.hSkip), P, { final, level: settings.checkLevel || 'tajweed', minSure: { gentle: 0.92, balanced: 0.8, strict: 0.5 }[settings.strict] || 0.8 });
+    const P = []; this.P.forEach(p => { if (p >= this.hSkip) P.push(p - this.hSkip); });
+    // Incremental: settled words are kept, marks show once they hold (see Tajweed.live).
+    if (!this.liveSt || this.liveSt.skip !== this.hSkip) this.liveSt = { skip: this.hSkip };
+    return Tajweed.live(this.liveSt, this.expected, this.H.slice(this.hSkip), P, { final, level: settings.checkLevel || 'tajweed', minSure: { gentle: 0.92, balanced: 0.8, strict: 0.5 }[settings.strict] || 0.8 });
   },
 
   transcript() { return `${this.carried} ${this.fin} ${this.interim}`; },

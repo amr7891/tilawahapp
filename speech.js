@@ -44,14 +44,31 @@
       } else if (m.type === 'flushed' && flushWait) { const f = flushWait; flushWait = null; f(); }
     };
 
+    // Resample to 16 kHz. Usually the browser already does it (the audio context runs at
+    // 16 kHz); otherwise low-pass first (windowed sinc, cut at 7.6 kHz) so high sounds like
+    // the sibilants don't fold back into the speech band.
+    let firTaps = null, firRate = 0, hist = new Float32Array(0), phase = 0;
     function down(input, inRate) {
-      const ratio = inRate / RATE, n = Math.floor(input.length / ratio), out = new Float32Array(n);
-      for (let i = 0; i < n; i++) {
-        const a = Math.floor(i * ratio), b = Math.min(input.length, Math.floor((i + 1) * ratio));
-        let s = 0; for (let j = a; j < b; j++) s += input[j];
-        out[i] = s / Math.max(1, b - a);
+      if (inRate === RATE) return new Float32Array(input);
+      if (firRate !== inRate) {
+        firRate = inRate; const N = 63, fc = 7600 / inRate; firTaps = new Float32Array(N); let sum = 0;
+        for (let i = 0; i < N; i++) { const m = i - (N - 1) / 2; const sinc = m === 0 ? 2 * fc : Math.sin(2 * Math.PI * fc * m) / (Math.PI * m); const w = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)) + 0.08 * Math.cos(4 * Math.PI * i / (N - 1)); firTaps[i] = sinc * w; sum += firTaps[i]; }
+        for (let i = 0; i < N; i++) firTaps[i] /= sum;
+        hist = new Float32Array(N - 1); phase = 0;
       }
-      return out;
+      const N = firTaps.length, buf = new Float32Array(hist.length + input.length);
+      buf.set(hist); buf.set(input, hist.length);
+      const ratio = inRate / RATE, out = [];
+      let t = phase;
+      for (; t + N <= buf.length; t += ratio) {
+        const i0 = Math.floor(t); let acc = 0;
+        for (let k = 0; k < N; k++) acc += buf[i0 + k] * firTaps[k];
+        out.push(acc);
+      }
+      const keepFrom = Math.floor(t);
+      hist = buf.slice(Math.min(keepFrom, buf.length - (N - 1)));
+      phase = t - Math.min(keepFrom, buf.length - (N - 1));
+      return Float32Array.from(out);
     }
 
     return {
@@ -68,9 +85,11 @@
           return false;
         }
         const AC = root.AudioContext || root.webkitAudioContext;
-        ctx = new AC();
+        try { ctx = new AC({ sampleRate: RATE }); } catch (_) { ctx = new AC(); }
         if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (_) {} }
-        src = ctx.createMediaStreamSource(stream);
+        try { src = ctx.createMediaStreamSource(stream); }
+        catch (_) { try { ctx.close(); } catch (e) {} ctx = new AC(); if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (e) {} } src = ctx.createMediaStreamSource(stream); }
+        firRate = 0;
         node = ctx.createScriptProcessor(4096, 1, 1);
         const mute = ctx.createGain(); mute.gain.value = 0;
         node.onaudioprocess = ev => {

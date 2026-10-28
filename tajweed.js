@@ -369,7 +369,8 @@
     let p = 0, y = 0, afterPause = true, guard = 0;
     const W = j => (words[j] ? (words[j].free ? null : word(words[j].s, words[j].a, words[j].pos)) : null);
     // An opening taʿawwudh or basmala before the first ayah is not part of the check.
-    if (words.length && !(words[0].s === 1 && words[0].a === 1)) {
+    const ends = [];   // where in H each judged word ends (for the app to resume from)
+    if (!opts.noOpener && words.length && !(words[0].s === 1 && words[0].a === 1)) {
       for (const k of ['0:1', '0:2']) {
         const ws = ayahWords(+k[0], +k[2]); if (!ws) continue;
         const seq = [].concat(...ws.slice(0, -1).map(w => w.wasl));
@@ -387,7 +388,7 @@
     }
     while (p < words.length && y < H.length && guard++ < 20000) {
       const w = W(p);
-      if (!w) { status[p] = status[p] || null; p++; continue; }
+      if (!w) { status[p] = status[p] || null; ends[p] = y; p++; continue; }
       if (pauses && pauses.has(y)) afterPause = true;
       const need = Math.max(w.wasl.length, w.waqf ? w.waqf.length : 0) + 2;
       if (!final && H.length - y < need && !(pauses && [...pauses].some(q => q > y))) break;
@@ -414,7 +415,7 @@
           const b = run(p - j, y, 3);
           if (b && b.norm < 0.25 && b.norm < here.norm - 0.2) { back = j; break; }
         }
-        if (back) { p -= back; afterPause = true; continue; }
+        if (back) { p -= back; ends.length = Math.min(ends.length, p); afterPause = true; continue; }
         // Skipped ahead (a word, a phrase or an ayah)?
         if (cur.norm > 0.3) {
           let skip = 0, bestSkip = null;
@@ -423,7 +424,7 @@
             const f = run(p + j, y, 3);
             if (f && f.used >= Math.min(2, words.length - p - j) && f.norm < 0.4 && f.norm < here.norm - 0.2 && (!bestSkip || f.norm < bestSkip.norm - 0.05)) { skip = j; bestSkip = f; }
           }
-          if (skip) { for (let j = 0; j < skip; j++) { status[p + j] = 'skip'; errors[p + j] = null; } p += skip; continue; }
+          if (skip) { for (let j = 0; j < skip; j++) { status[p + j] = 'skip'; errors[p + j] = null; ends[p + j] = y; } p += skip; continue; }
           // A stray sound before the word?
           const nx = bestMatch(w, W(p + 1), H, y + 1, afterPause, final);
           if (nx && nx.norm < cur.norm - 0.3) { y++; continue; }
@@ -441,10 +442,50 @@
       }
       errors[p] = errs.length ? errs : null;
       status[p] = !errs.length ? 'ok' : errs.some(e => e.sev === 'wrong') ? 'wrong' : 'tajweed';
-      y += cur.k; p++;
+      y += cur.k; ends[p] = y; p++;
       afterPause = !!(pauses && pauses.has(y));
     }
-    return { status, errors, pos: p };
+    return { status, errors, pos: p, ends };
+  }
+
+  /* Live checking while the reader recites. Keeps state between calls (st = {} to start):
+     - words well behind the reader (15 words back) are settled and kept, and only the
+       rest is checked again, so each update stays fast however long the recitation;
+     - the room (echo/noise) estimate carries over and is refined as more is heard;
+     - a mark is shown only once it has held for two updates in a row (or the word is
+       settled, or on the final check), so a mark doesn't flash up and vanish. */
+  const KEEP_BACK = 15;
+  function live(st, words, H, pauses, opts) {
+    opts = opts || {};
+    if (st.p0 == null) Object.assign(st, { p0: 0, y0: 0, status: [], errors: [], flagged: new Map() });
+    const P = new Set(); (pauses || []).forEach(q => { if (q >= st.y0) P.add(q - st.y0); });
+    const stats = { eq: 0, unsure: 0 };
+    const o = Object.assign({}, opts, { noOpener: st.p0 > 0, stats });
+    if (st.room != null) o.room = st.room;
+    let r = check(words.slice(st.p0), H.slice(st.y0), P, o);
+    if (st.room == null && r.room != null) st.room = r.room;
+    else if (st.room != null && stats.eq >= 12) st.room = 0.7 * st.room + 0.3 * (stats.unsure / stats.eq);
+    const n = words.length, status = new Array(n).fill(null), errors = new Array(n).fill(null);
+    for (let i = 0; i < st.p0; i++) { status[i] = st.status[i]; errors[i] = st.errors[i]; }
+    r.status.forEach((x, i) => { status[st.p0 + i] = x; errors[st.p0 + i] = r.errors[i]; });
+    const pos = st.p0 + r.pos;
+    const raw = status.slice(), rawE = errors.slice();
+    // Hide a fresh mark until it has held for two updates in a row.
+    if (!opts.final) {
+      for (let i = st.p0; i < pos; i++) {
+        const bad = status[i] && status[i] !== 'ok';
+        const c = bad ? (st.flagged.get(i) || 0) + 1 : 0;
+        if (c) st.flagged.set(i, c); else st.flagged.delete(i);
+        if (bad && c < (opts.hold || 2)) { status[i] = 'ok'; errors[i] = null; }
+      }
+    }
+    // Settle the words well behind the reader.
+    const k = r.pos - KEEP_BACK;
+    if (!opts.final && k > 0 && r.ends[k - 1] != null) {
+      for (let i = 0; i < k; i++) { st.status[st.p0 + i] = raw[st.p0 + i]; st.errors[st.p0 + i] = rawE[st.p0 + i]; status[st.p0 + i] = raw[st.p0 + i]; errors[st.p0 + i] = rawE[st.p0 + i]; }
+      st.y0 += r.ends[k - 1]; st.p0 += k;
+    }
+    return { status, errors, pos, room: st.room };
   }
 
   // ---- finding where the reciter is (recite anywhere) ----
@@ -486,7 +527,7 @@
     return { s, a, pos, skip: k, score: bn };
   }
 
-  const api = { init, tokenize, word, check, find, units: () => units, get blank() { return blank; } };
+  const api = { init, tokenize, word, check, live, find, units: () => units, get blank() { return blank; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Tajweed = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
