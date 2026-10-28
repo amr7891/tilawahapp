@@ -451,6 +451,7 @@
     const status = new Array(words.length).fill(null), errors = new Array(words.length).fill(null);
     let p = 0, y = 0, afterPause = true, guard = 0, lastStart = null;
     const tried = new Set();   // restarts already taken (each is taken once)
+    let restartAt = -1;
     const W = j => (words[j] ? (words[j].free ? null : word(words[j].s, words[j].a, words[j].pos)) : null);
     // The same word is often tried at the same place many times over (looking back for a
     // repeat, ahead for a skip): work each one out once per check.
@@ -489,8 +490,13 @@
       if (pauses && pauses.has(y)) afterPause = true;
       const need = Math.max(w.wasl.length, w.waqf ? w.waqf.length : 0) + 2;
       if (!final && H.length - y < need && !(pauses && [...pauses].some(q => q > y))) break;
-      const cur = BM(p, y, afterPause);
+      let cur = BM(p, y, afterPause);
       if (!cur) break;
+      // Starting again after going back (ibtidāʾ): a sound or two before the first word (a
+      // breath, the start of a false start) belongs to no word.
+      if (y === restartAt && cur.norm > 0.12) {
+        for (const d of [1, 2]) { const c2 = BM(p, y + d, true); if (c2 && c2.norm < cur.norm - 0.1) { y += d; cur = c2; restartAt = y; break; } }
+      }
 
       // How well do the next few words read from here, starting at word q?
       const run = (q, yy, n) => {
@@ -517,7 +523,7 @@
           const w = words[p - c.j];
           if (w && w.pos > 1 && w.pos <= 4) {
             const k = p - c.j - (w.pos - 1);
-            if (k >= 0 && words[k] && words[k].a === w.a && words[k].pos === 1) { const r = run(k, yy, n); if (r && r.norm <= c.norm + 0.12) c = { j: p - k, norm: r.norm }; }
+            if (k >= 0 && words[k] && words[k].a === w.a && words[k].pos === 1) { const r = run(k, yy, n); if (r && r.norm <= c.norm + 0.05) c = { j: p - k, norm: r.norm }; }
           }
           return c;
         };
@@ -554,6 +560,7 @@
         if (back) {
           p -= back; ends.length = Math.min(ends.length, p); afterPause = true; lastStart = null;
           for (let i = p; i < status.length; i++) { status[i] = null; errors[i] = null; }   // judged again from here
+          restartAt = y;
           continue;
         }
         // Skipped ahead (a word, a phrase or an ayah)? Not if the next words line up right
@@ -578,6 +585,15 @@
       if (!final && !pauseAfter && y + cur.k + (opts.settle == null ? 4 : opts.settle) > H.length) break;
       const nw = W(p + 1);
       let errs = explain(w, cur.form, H, y, y + cur.k, Object.assign({}, opts, { pauseAfter, afterPause, nextUnit: nw && !pauseAfter ? nw.wasl[0] : -1 }));
+      // Resuming after a pause, readers repeat the word they stopped on or part of it (ibtidāʾ):
+      // extra sounds where the word starts are that, not a mistake.
+      if (afterPause && p > 0 && errs.length && errs.some(e => e.type === 'extra')) {
+        const lead = errs.filter(e => e.type === 'extra' && e.msg.startsWith('Extra sound:'));
+        if (lead.length && lead.length === errs.filter(e => e.type === 'extra').length) {
+          const prev = W(p - 1), prevStr = prev ? prev.wasl.concat(prev.waqf || []).map(u => units[u] && units[u].str).join('') : '';
+          if (lead.every(e => prevStr.includes(e.got))) errs = errs.filter(e => !lead.includes(e));
+        }
+      }
       // A long vowel straight after the word's last short vowel, of the same kind (ۥۥ after
       // ḍamma…), lengthens that vowel: e.g. ʿalā l- for ʿala l- (a madd kept before a sukun).
       // It belongs to this word, not to the start of the next.
