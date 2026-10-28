@@ -238,6 +238,8 @@
   // Explain the differences in one word.
   function explain(W, form, H, y0, y1, opts) {
     const X = form.units, errs = [];
+    // Unit i is a ya with kasra followed by a long ī (يِ + ۦۦ).
+    const yiBefore = i => units[X[i]] && units[X[i]].str === 'يِ' && units[X[i + 1]] && units[X[i + 1]].maddChar === 'ۦ';
     // The letter that follows unit i (in this word, or the next word's first sound).
     const nextLetter = i => { const u = i + 1 < X.length ? units[X[i + 1]] : units[opts.nextUnit]; return u ? (u.letter || u.maddChar) : ''; };
     const level = opts.level || 'tajweed', tau = opts.tau == null ? 0.12 : opts.tau;
@@ -296,6 +298,8 @@
             ? (atEnd && (W.last || opts.pauseAfter) ? `Qalqalah kubrā: when stopping, bounce the ${lname(xu.letter)} clearly` : `Qalqalah ṣughrā: bounce the ${lname(xu.letter)} lightly, without a vowel`)
             : `No qalqalah on the ${lname(xu.letter)}` };
           else if (xu.shadda !== yu.shadda) e = { type: 'shadda', sev: 'wrong', exp: xu.str, got: yu.str, msg: xu.shadda ? `Shaddah: double the ${LETTER_NAMES[xu.letter] || xu.letter}` : `No shaddah on the ${LETTER_NAMES[xu.letter] || xu.letter}` };
+          // yastaḥyī, yuḥyī: the ya with kasra before a long ī is heard merged into it (ḥi + ī)
+          else if (!xu.haraka && yu.haraka === 'ِ' && yiBefore(o.x + 1)) continue;
           else if (xu.haraka !== yu.haraka) {
             if (atEnd && (W.last || opts.pauseAfter)) continue; // the ending changes when stopping
             e = { type: 'haraka', sev: 'wrong', exp: xu.str, got: yu.str, msg: `Haraka: ${HARAKA_NAMES[xu.haraka]} on the ${LETTER_NAMES[xu.letter] || xu.letter}, not ${HARAKA_NAMES[yu.haraka]}` };
@@ -308,6 +312,7 @@
         }
       } else if (o.op === 'del') {
         if (heardMaybe(H, o.y, X[o.x], 0.03) || heardMaybe(H, o.y - 1, X[o.x], 0.03)) continue;
+        if (yiBefore(o.x)) continue;
         if (edgeMerge(o)) continue;
         low = sure(H, o.y) < ms || sure(H, o.y - 1) < ms; var conf = Math.min(sure(H, o.y), sure(H, o.y - 1));
         if (atEnd && (W.last || opts.pauseAfter) && (xu.madd || !xu.base)) continue;
