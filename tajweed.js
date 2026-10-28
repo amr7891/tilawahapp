@@ -221,6 +221,8 @@
       if (!u) return false;
       // Same letter, same doubling, only the haraka differs: that's a real haraka mistake.
       if (o.op === 'sub') { const v = units[H[o.y].id]; if (v && v.letter === u.letter && v.shadda === u.shadda && v.haraka !== u.haraka && !u.madd) return false; }
+      // A join only makes a long vowel longer: a madd held shorter than needed is not a join.
+      if (o.op === 'sub' && u.madd) { const v = units[H[o.y].id]; if (v && v.madd && v.madd < u.madd) return false; }
       const l = u.letter || u.maddChar;
       // A sound at the very start or end of a word that repeats the letter heard just across
       // the boundary is the join of the two words (idgham, a doubled letter), not an extra.
@@ -244,7 +246,8 @@
         low = sure(H, o.y) < ms; var conf = sure(H, o.y);
         if (xu.madd && yu.madd) {
           const ok = rule && MADD_OK[rule] ? MADD_OK[rule] : [xu.madd];
-          if (ok.includes(yu.madd) || (atEnd && W.last)) continue;
+          // Stopping on the word: its final madd shortens or drops (a pronoun's silah goes).
+          if (ok.includes(yu.madd) || (atEnd && (W.last || opts.pauseAfter))) continue;
           if (Math.abs(yu.madd - xu.madd) === 1 && rule !== 'N') continue;
           if (ok.some(n => Math.abs(n - yu.madd) <= 1) && sure(H, o.y) < 0.9) continue;
           e = { type: 'madd', sev: 'tajweed', exp: xu.str, got: yu.str, msg: `${rule ? MADD_NAMES[rule] : 'Madd'}: hold for ${counts(ok)} (you held ${yu.madd})` };
