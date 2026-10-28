@@ -5,7 +5,7 @@
 // - Books: each PDF is downloaded once, then read from the phone.
 // - Recitation audio streams from EveryAyah / MP3Quran (not from this site) and the
 //   ayahs you play are kept so they replay offline.
-const SHELL = 'tilawah-shell-v15';
+const SHELL = 'tilawah-shell-v16';
 const DATA = 'tilawah-data-v4';
 const BOOKS = 'tilawah-books-v1';
 const AUDIO = 'tilawah-audio-v1';
@@ -24,11 +24,14 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
     .then(keys => Promise.all(keys.filter(k => !KEEP.includes(k)).map(k => caches.delete(k))))
+    // Earlier versions saved MP3Quran ayah timings under one entry for every surah and
+    // reciter (the query was ignored); drop them so each surah's timings are fetched again.
+    .then(() => caches.open(DATA)).then(c => c.keys().then(reqs => Promise.all(reqs.filter(r => r.url.includes('ayat_timing')).map(r => c.delete(r)))))
     .then(() => self.clients.claim()));
 });
 
-function cacheFirst(req, name = DATA) {
-  return caches.open(name).then(c => c.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req).then(res => {
+function cacheFirst(req, name = DATA, exact = false) {
+  return caches.open(name).then(c => c.match(req, { ignoreSearch: !exact }).then(hit => hit || fetch(req).then(res => {
     if (res.status === 200) c.put(req, res.clone());
     return res;
   })));
@@ -64,7 +67,7 @@ self.addEventListener('fetch', e => {
   // Per-ayah recitations from EveryAyah (small files) are kept once played.
   if (url.hostname === 'everyayah.com') { e.respondWith(audio(req)); return; }
   // Ayah timings for full-surah reciters.
-  if (/mp3quran\.net$/.test(url.hostname) && url.pathname.includes('ayat_timing')) { e.respondWith(cacheFirst(req)); return; }
+  if (/mp3quran\.net$/.test(url.hostname) && url.pathname.includes('ayat_timing')) { e.respondWith(cacheFirst(req, DATA, true)); return; }
 
   // Tajweed page fonts: kept once a page has been opened.
   if (url.hostname === 'verses.quran.foundation') { e.respondWith(cacheFirst(req)); return; }

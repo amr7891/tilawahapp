@@ -33,10 +33,11 @@ const MP3Q = 'https://cdn.mp3quran.net/audio/';
 const RECITERS = [
   { id: 'Abdul_Basit_Murattal_192kbps', name: 'Abdul Basit Abdus-Samad', arabic: 'عبد الباسط عبد الصمد' },
   { id: 'Abdul_Basit_Mujawwad_128kbps', name: 'Abdul Basit Abdus-Samad', arabic: 'عبد الباسط عبد الصمد', style: 'Mujawwad' },
-  { id: 'Abdullaah_3awwaad_Al-Juhaynee_128kbps', name: 'Abdullah Awad Al-Juhany', arabic: 'عبد الله عواد الجهني' },  // JUHANI_PENDING
+  { id: 'Abdullaah_3awwaad_Al-Juhaynee_128kbps', name: 'Abdullah Awad Al-Juhany', arabic: 'عبد الله عواد الجهني', timed: { local: 'abdullah-juhani', read: 62, base: MP3Q + 'abdullah-juhani/r1/' } },
   { id: 'Abdurrahmaan_As-Sudais_192kbps', name: 'Abdur-Rahman as-Sudais', arabic: 'عبد الرحمن السديس' },
   { id: 'Abu_Bakr_Ash-Shaatree_128kbps', name: 'Abu Bakr al-Shatri', arabic: 'أبو بكر الشاطري' },
   { id: 'Hudhaify_128kbps', name: 'Ali Al-Huthaify', arabic: 'علي بن عبد الرحمن الحذيفي' },
+  { id: 'tl-bandar-baleela', name: 'Bandar Baleela', arabic: 'بندر بليلة', timed: { local: 'bandar-baleela', read: 217, base: MP3Q + 'bandar-baleela/r1/' } },
   { id: 'Fares_Abbad_64kbps', name: 'Fares Abbad', arabic: 'فارس عباد' },
   { id: 'mp3quran-273', name: 'Haitham Al-Dokhin', arabic: 'هيثم الدخين', timed: { local: 'haitham-dukhain', read: 273, base: MP3Q + 'haitham-dukhain/r1/' } },
   { id: 'mp3quran-299', name: 'Hassan Saleh', arabic: 'حسن صالح', timed: { local: 'hassan-saleh', read: 299, base: MP3Q + 'hassan-saleh/r1/' } },
@@ -407,7 +408,7 @@ function getTimings(timed, s) {
   if (!timings.has(k)) {
     // Our own timings (data/timings/<reciter>/<surah>.json, [[start, end] ms per ayah]),
     // worked out by aligning the recording with the Quran phoneme model; or MP3Quran's.
-    const mp3q = () => fetchJSON(`https://mp3quran.net/api/v3/ayat_timing?surah=${s}&read=${timed.read}`).then(list => {
+    const mp3q = () => fetchJSON(`https://www.mp3quran.net/api/v3/ayat_timing?surah=${s}&read=${timed.read}`).then(list => {
       const byAyah = {};
       list.forEach(t => { if (t.ayah > 0) byAyah[t.ayah] = [t.start_time / 1000, t.end_time / 1000]; });
       return byAyah;
