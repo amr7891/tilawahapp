@@ -66,7 +66,43 @@ def align_long(lp, dur, s, n, MS=40):
         e=starts[k+1]*MS-150 if k+1<n else int(dur*1000)
         res.append([b,e])
     return res
+def envelope(raw):
+    x=np.fromfile(raw,dtype=np.int16).astype(np.float32)/32768
+    fr=160
+    return 20*np.log10(np.sqrt(np.add.reduceat(x**2,np.arange(0,len(x),fr))/fr+1e-10))  # 10 ms frames
+def refine(res, db, lead=0.12):
+    """Snap each ayah start into the pause before it: just before the first sound."""
+    pk=np.percentile(db,95); fl=np.percentile(db,3)
+    thr=max(pk-24, fl+0.4*(pk-fl))
+    sil=db<thr
+    out=[list(r) for r in res]
+    for k in range(len(res)):
+        b=res[k][0]/1000
+        lo=max(0,int((b-1.2)*100)); hi=min(len(db),int((b+0.45)*100))
+        runs=[]; i=lo
+        while i<hi:
+            if sil[i]:
+                j=i
+                while j<len(sil) and sil[j]: j+=1
+                if j-i>=8: runs.append((i,j))
+                i=j
+            else: i+=1
+        prev_lim=(out[k-1][0]/1000+0.3) if k else 0
+        if runs:
+            # the pause whose end is nearest to where the model put the start
+            i,j=min(runs,key=lambda r:abs(r[1]/100-b) - 0.002*(r[1]-r[0]))
+            ns=max(i/100, j/100-lead)
+        else:
+            # no clear pause (joined recitation, echo): quietest point near the start
+            a,z=max(0,int((b-0.35)*100)),min(len(db),int((b+0.15)*100))
+            ns=(a+int(np.argmin(db[a:z])))/100 if z>a else b
+        ns=max(ns,prev_lim)
+        out[k][0]=int(round(ns*1000))
+    for k in range(len(out)-1): out[k][1]=out[k+1][0]
+    return out
+
 if __name__=='__main__':
     raw,s,n=sys.argv[1],int(sys.argv[2]),int(sys.argv[3])
     lp,dur=logprobs(raw)
-    print(json.dumps(align_long(lp,dur,s,n)))
+    # usage: align_reciter.py <16 kHz mono s16le file> <surah> <ayah count>
+    print(json.dumps(refine(align_long(lp,dur,s,n), envelope(raw))))

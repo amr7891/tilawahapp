@@ -33,14 +33,14 @@ const MP3Q = 'https://cdn.mp3quran.net/audio/';
 const RECITERS = [
   { id: 'Abdul_Basit_Murattal_192kbps', name: 'Abdul Basit Abdus-Samad', arabic: 'عبد الباسط عبد الصمد' },
   { id: 'Abdul_Basit_Mujawwad_128kbps', name: 'Abdul Basit Abdus-Samad', arabic: 'عبد الباسط عبد الصمد', style: 'Mujawwad' },
-  { id: 'Abdullaah_3awwaad_Al-Juhaynee_128kbps', name: 'Abdullah Awad Al-Juhany', arabic: 'عبد الله عواد الجهني' },
+  { id: 'Abdullaah_3awwaad_Al-Juhaynee_128kbps', name: 'Abdullah Awad Al-Juhany', arabic: 'عبد الله عواد الجهني' },  // JUHANI_PENDING
   { id: 'Abdurrahmaan_As-Sudais_192kbps', name: 'Abdur-Rahman as-Sudais', arabic: 'عبد الرحمن السديس' },
   { id: 'Abu_Bakr_Ash-Shaatree_128kbps', name: 'Abu Bakr al-Shatri', arabic: 'أبو بكر الشاطري' },
-  { id: 'mp3quran-137', name: 'Ahmed Talib bin Humaid', arabic: 'أحمد طالب بن حميد', timed: { read: 137, base: MP3Q + 'ahmad-humaid/r1/' }, missing: [9, 14, 16, 17, 23, 24, 33] },
+  { id: 'mp3quran-137', name: 'Ahmed Talib bin Humaid', arabic: 'أحمد طالب بن حميد', timed: { local: 'ahmad-humaid', read: 137, base: MP3Q + 'ahmad-humaid/r1/' }, missing: [9, 14, 16, 17, 23, 24, 33] },
   { id: 'Hudhaify_128kbps', name: 'Ali Al-Huthaify', arabic: 'علي بن عبد الرحمن الحذيفي' },
   { id: 'Fares_Abbad_64kbps', name: 'Fares Abbad', arabic: 'فارس عباد' },
-  { id: 'mp3quran-273', name: 'Haitham Al-Dokhin', arabic: 'هيثم الدخين', timed: { read: 273, base: MP3Q + 'haitham-dukhain/r1/' } },
-  { id: 'mp3quran-299', name: 'Hassan Saleh', arabic: 'حسن صالح', timed: { read: 299, base: MP3Q + 'hassan-saleh/r1/' } },
+  { id: 'mp3quran-273', name: 'Haitham Al-Dokhin', arabic: 'هيثم الدخين', timed: { local: 'haitham-dukhain', read: 273, base: MP3Q + 'haitham-dukhain/r1/' } },
+  { id: 'mp3quran-299', name: 'Hassan Saleh', arabic: 'حسن صالح', timed: { local: 'hassan-saleh', read: 299, base: MP3Q + 'hassan-saleh/r1/' } },
   { id: 'Husary_128kbps', name: 'Mahmoud Khalil Al-Husary', arabic: 'محمود خليل الحصري' },
   { id: 'MaherAlMuaiqly128kbps', name: 'Maher Al-Muaiqly', arabic: 'ماهر المعيقلي' },
   { id: 'tl-waleed-shamsan', name: 'Al-Waleed Al-Shamsan', arabic: 'الوليد الشمسان', timed: { local: 'waleed-shamsan', base: MP3Q + 'waleed-shamsan/r1/' }, missing: [2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 18, 21, 22, 23, 27, 28, 34, 38, 39, 40, 46, 61, 69, 71, 72, 73, 74, 77, 78, 79, 80, 83, 84, 87, 88, 89, 90, 91, 92] },
@@ -48,11 +48,11 @@ const RECITERS = [
   { id: 'tl-muhammad-luhaidan', name: 'Muhammad Al-Luhaidan', arabic: 'محمد اللحيدان', timed: { local: 'muhammad-luhaidan', base: MP3Q + 'muhammad-luhaidan/r1/' } },
   { id: 'Alafasy_128kbps', name: 'Mishary Rashid Alafasy', arabic: 'مشاري راشد العفاسي' },
   { id: 'Muhammad_Ayyoub_128kbps', name: 'Muhammad Ayyub', arabic: 'محمد أيوب' },
-  { id: 'mp3quran-340', name: 'Muhammad Barhaji', arabic: 'محمد برهجي', timed: { read: 340, base: MP3Q + 'muhammad-burhaji/r1/' } },
+  { id: 'mp3quran-340', name: 'Muhammad Barhaji', arabic: 'محمد برهجي', timed: { local: 'muhammad-burhaji', read: 340, base: MP3Q + 'muhammad-burhaji/r1/' } },
   { id: 'Minshawy_Murattal_128kbps', name: 'Muhammad Siddiq Al-Minshawi', arabic: 'محمد صديق المنشاوي' },
   { id: 'Minshawy_Mujawwad_192kbps', name: 'Muhammad Siddiq Al-Minshawi', arabic: 'محمد صديق المنشاوي', style: 'Mujawwad' },
-  { id: 'mp3quran-221', name: 'Raad Muhammad al-Kurdi', arabic: 'رعد محمد الكردي', timed: { read: 221, base: MP3Q + 'raad-kurdi/r1/' } },
-  { id: 'mp3quran-30', name: 'Saad al-Ghamdi', arabic: 'سعد الغامدي', timed: { read: 30, base: MP3Q + 'saad-ghamdi/r1/' } },
+  { id: 'mp3quran-221', name: 'Raad Muhammad al-Kurdi', arabic: 'رعد محمد الكردي', timed: { local: 'raad-kurdi', read: 221, base: MP3Q + 'raad-kurdi/r1/' } },
+  { id: 'mp3quran-30', name: 'Saad al-Ghamdi', arabic: 'سعد الغامدي', timed: { local: 'saad-ghamdi', read: 30, base: MP3Q + 'saad-ghamdi/r1/' } },
   { id: 'Saood_ash-Shuraym_128kbps', name: 'Saud al-Shuraim', arabic: 'سعود الشريم' },
   { id: 'Yasser_Ad-Dussary_128kbps', name: 'Yasser al-Dossari', arabic: 'ياسر الدوسري' },
 ];
@@ -409,13 +409,13 @@ function getTimings(timed, s) {
   if (!timings.has(k)) {
     // Our own timings (data/timings/<reciter>/<surah>.json, [[start, end] ms per ayah]),
     // worked out by aligning the recording with the Quran phoneme model; or MP3Quran's.
-    const p = timed.local
-      ? fetchJSON(`data/timings/${timed.local}/${s}.json`).then(list => { const byAyah = {}; list.forEach((t, i) => { byAyah[i + 1] = [t[0] / 1000, t[1] / 1000]; }); return byAyah; })
-      : fetchJSON(`https://mp3quran.net/api/v3/ayat_timing?surah=${s}&read=${timed.read}`).then(list => {
-        const byAyah = {};
-        list.forEach(t => { if (t.ayah > 0) byAyah[t.ayah] = [t.start_time / 1000, t.end_time / 1000]; });
-        return byAyah;
-      });
+    const mp3q = () => fetchJSON(`https://mp3quran.net/api/v3/ayat_timing?surah=${s}&read=${timed.read}`).then(list => {
+      const byAyah = {};
+      list.forEach(t => { if (t.ayah > 0) byAyah[t.ayah] = [t.start_time / 1000, t.end_time / 1000]; });
+      return byAyah;
+    });
+    const own = () => fetchJSON(`data/timings/${timed.local}/${s}.json`).then(list => { const byAyah = {}; list.forEach((t, i) => { byAyah[i + 1] = [t[0] / 1000, t[1] / 1000]; }); return byAyah; });
+    const p = timed.local ? (timed.read ? own().catch(mp3q) : own()) : mp3q();
     p.catch(() => timings.delete(k));
     timings.set(k, p);
   }
@@ -457,13 +457,19 @@ function wordClass(w) {
   let c = 'w';
   const st = rec.status.get(w.id);
   if (st) c += ' ' + st;
-  else if (rec.active && settings.hide && rec.ids.has(w.id) && !peeks.has(w.id)) c += ' hidden';
+  else if (settings.hide && !peeks.has(w.id) && (state.view === 'mushaf' || state.view === 'surah') && memHidden(w)) c += ' hidden';
   if (rec.active && rec.nextId === w.id) c += ' next';
   if (player.playing && player.key() === key) c += ' playing';
   if (state.selected === key) c += ' selected';
   const hl = highlights()[key];
   if (hl) c += ' hl-' + hl;
   return c;
+}
+// Memorization mode: every word is hidden until it has been recited, except the words
+// before the place the recitation started (they stay as context).
+function memHidden(w) {
+  if (!rec.active || rec.auto || !rec.from) return true;
+  return rec.inScope(w) !== 0;
 }
 function paintWords() {
   wordEls.forEach(({ w, els }) => { const c = wordClass(w); els.forEach(el => { if (el.className !== c) el.className = c; }); });
@@ -702,10 +708,11 @@ const mushaf = {
     page.style.width = pw + 'px';
     page.style.height = ph + 'px';
     const body = page.querySelector('.mbody');
+    // Always measure on the printed 15-line layout, so every size is a multiple of 100%.
+    if (reflow) page.classList.remove('reflow');
     const lineH = body.clientHeight / 15;
     body.style.setProperty('--line-h', lineH + 'px');
     // Measure natural line widths at a test size (as a printed page).
-    if (reflow) page.classList.remove('reflow');
     body.style.fontSize = '100px';
     body.classList.add('measuring');
     let max = 0;
@@ -1665,10 +1672,10 @@ function editAyahNote(s, a) {
 function savedItems() {
   const items = [];
   const book = id => { const f = findBook(id); return f ? f.b : null; };
-  bookmarks().forEach(b => { const c = Q.meta ? Q.surahsOnPage(b.p)[0] : null; items.push({ kind: 'page', t: b.t || 0, href: `#page-${b.p}`, title: `Page ${b.p}`, sub: c ? `${c.en} · Juz ${Q.juzOfPage(b.p)}` : '', group: 'Mushaf pages' }); });
-  ayahMarks().forEach(m => items.push({ kind: 'ayah', t: m.t || 0, href: `#page-${Q.ayahPage(m.s, m.a)}`, sel: `${m.s}:${m.a}`, title: `${Q.ch(m.s).en} ${m.s}:${m.a}`, sub: 'Bookmarked ayah', group: 'Ayahs' }));
-  Object.entries(highlights()).forEach(([k, color]) => { const [s, a] = k.split(':').map(Number); items.push({ kind: 'hl', t: 0, color, href: `#page-${Q.ayahPage(s, a)}`, sel: k, title: `${Q.ch(s).en} ${k}`, sub: 'Highlighted ayah', group: 'Ayahs' }); });
-  Object.entries(notes.ayah()).forEach(([k, n]) => { const [s, a] = k.split(':').map(Number); items.push({ kind: 'anote', note: true, t: n.t, href: `#page-${Q.ayahPage(s, a)}`, sel: k, title: `${Q.ch(s).en} ${k}`, sub: n.text, group: 'Quran' }); });
+  bookmarks().forEach(b => { const c = Q.meta ? Q.surahsOnPage(b.p)[0] : null; items.push({ kind: 'page', rm: ['bookmarks', x => x.p === b.p], t: b.t || 0, href: `#page-${b.p}`, title: `Page ${b.p}`, sub: c ? `${c.en} · Juz ${Q.juzOfPage(b.p)}` : '', group: 'Mushaf pages' }); });
+  ayahMarks().forEach(m => items.push({ kind: 'ayah', rm: ['ayahMarks', x => x.s === m.s && x.a === m.a], t: m.t || 0, href: `#page-${Q.ayahPage(m.s, m.a)}`, sel: `${m.s}:${m.a}`, title: `${Q.ch(m.s).en} ${m.s}:${m.a}`, sub: 'Bookmarked ayah', group: 'Ayahs' }));
+  Object.entries(highlights()).forEach(([k, color]) => { const [s, a] = k.split(':').map(Number); items.push({ kind: 'hl', rm: ['highlights', k], t: 0, color, href: `#page-${Q.ayahPage(s, a)}`, sel: k, title: `${Q.ch(s).en} ${k}`, sub: 'Highlighted ayah', group: 'Ayahs' }); });
+  Object.entries(notes.ayah()).forEach(([k, n]) => { const [s, a] = k.split(':').map(Number); items.push({ kind: 'anote', rm: ['ayahNotes', k], note: true, t: n.t, href: `#page-${Q.ayahPage(s, a)}`, sel: k, title: `${Q.ch(s).en} ${k}`, sub: n.text, group: 'Quran' }); });
   for (let i = 0; i < localStorage.length; i++) {
     const lk = localStorage.key(i) || '';
     const m = lk.match(/^tl:(pdfMarks|pdfHl|pdfNotes):(.+):(\d+)$/);
@@ -1677,9 +1684,9 @@ function savedItems() {
     if (!b) continue;
     const name = b.title + (b.files.length > 1 ? ` · ${b.files[+fi].label}` : '');
     const list = store.get(`${type}:${id}:${fi}`, []);
-    if (type === 'pdfMarks') list.forEach(n => items.push({ kind: 'bpage', t: 0, href: `#read-${id}-${fi}-p${n}`, title: `Page ${n}`, sub: name, group: name }));
-    if (type === 'pdfHl') list.forEach(h => items.push({ kind: 'bhl', t: h.t || 0, color: h.color, href: `#read-${id}-${fi}-p${h.page}`, title: `Page ${h.page}`, sub: h.text || 'Highlight', book: name, group: name }));
-    if (type === 'pdfNotes') list.forEach(n => items.push({ kind: 'bnote', note: true, t: n.t || 0, color: n.color, href: `#read-${id}-${fi}-p${n.page}-n${n.id}`, title: `Page ${n.page}`, sub: n.text, quote: n.quote, book: name, group: name }));
+    if (type === 'pdfMarks') list.forEach(n => items.push({ kind: 'bpage', rm: [`${type}:${id}:${fi}`, x => x === n], t: 0, href: `#read-${id}-${fi}-p${n}`, title: `Page ${n}`, sub: name, group: name }));
+    if (type === 'pdfHl') list.forEach(h => items.push({ kind: 'bhl', rm: [`${type}:${id}:${fi}`, x => x === h || (h.id != null && x.id === h.id)], t: h.t || 0, color: h.color, href: `#read-${id}-${fi}-p${h.page}`, title: `Page ${h.page}`, sub: h.text || 'Highlight', book: name, group: name }));
+    if (type === 'pdfNotes') list.forEach(n => items.push({ kind: 'bnote', rm: [`${type}:${id}:${fi}`, x => x.id === n.id], note: true, t: n.t || 0, color: n.color, href: `#read-${id}-${fi}-p${n.page}-n${n.id}`, title: `Page ${n.page}`, sub: n.text, quote: n.quote, book: name, group: name }));
   }
   return items.sort((x, y) => y.t - x.t);
 }
@@ -1693,8 +1700,35 @@ const ICONS = {
   anote: '<path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/>',
   bnote: '<path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/>',
 };
+// Remove a saved item (from the home screen or the Saved tab), with Undo.
+const savedShown = [];
+function removeSaved(it) {
+  const [key, match] = it.rm;
+  const before = localStorage.getItem('tl:' + key);
+  const v = store.get(key, typeof match === 'string' ? {} : []);
+  if (Array.isArray(v)) { store.set(key, v.filter(x => !match(x))); }
+  else { delete v[match]; store.set(key, v); }
+  highlights.cache = null;
+  const refresh = () => { renderSavedHome(); if (state.view === 'saved') saved.render(); paintWords(); };
+  refresh();
+  const what = it.note ? 'Note' : it.kind === 'hl' || it.kind === 'bhl' ? 'Highlight' : 'Bookmark';
+  toast(`${what} removed.`);
+  const el = $('#toast'), b = document.createElement('button');
+  b.type = 'button'; b.className = 'toast-undo'; b.textContent = 'Undo';
+  b.addEventListener('click', () => { if (before == null) localStorage.removeItem('tl:' + key); else localStorage.setItem('tl:' + key, before); highlights.cache = null; refresh(); el.hidden = true; });
+  el.append(b);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 5000);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.saved-rm');
+  if (!b) return;
+  e.preventDefault();
+  const it = savedShown[+b.dataset.rm];
+  if (it) removeSaved(it);
+});
 function savedRow(it, inGroup) {
-  return `<li><a class="saved-row" href="${it.href}"${it.sel ? ` data-select="${it.sel}"` : ''}>
+  const n = savedShown.push(it) - 1;
+  return `<li class="saved-item"><button type="button" class="saved-rm" data-rm="${n}" aria-label="Remove ${esc(it.title)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button><a class="saved-row" href="${it.href}"${it.sel ? ` data-select="${it.sel}"` : ''}>
     <span class="sr-icon k-${it.kind}${it.color ? ' c-' + it.color : ''}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[it.kind]}</svg></span>
     <span class="sr-text"><b>${esc(it.title)}${it.book && !inGroup ? ` <em>${esc(it.book)}</em>` : ''}</b>${it.quote ? `<q>${esc(it.quote)}</q>` : ''}<span>${esc(it.sub || '')}</span></span>
   </a></li>`;
@@ -2605,12 +2639,13 @@ $('#micBtn').addEventListener('click', () => {
       const errs = hit && rec.errors.get(hit.w.id);
       if (errs) { toast([{ ar: hit.w.text }, ' ' + errs.map(x => x.msg).join(' · ')], errs.some(x => x.sev === 'wrong') ? 'bad' : 'warn'); return; }
     }
-    if (word && rec.active) {
-      // Memorization mode: tap a hidden word to peek at it for a moment.
-      const id = `${word.dataset.s}:${word.dataset.a}:${[...wordEls.values()].find(r => r.els.includes(word))?.w.pos}`;
-      if (word.classList.contains('hidden')) { peeks.add(id); paintWords(); setTimeout(() => { peeks.delete(id); paintWords(); }, 1600); }
-      return;
+    // Memorization mode: tap a hidden word to peek at it for a moment.
+    if (word && word.classList.contains('hidden')) {
+      const id = [...wordEls.values()].find(r => r.els.includes(word))?.w.id;
+      if (id) { peeks.add(id); setTimeout(() => { peeks.delete(id); paintWords(); }, 1600); }
+      if (rec.active) { paintWords(); return; }
     }
+    if (word && rec.active) return;
     if (word) { const k = `${word.dataset.s}:${word.dataset.a}`; mushaf.select(state.selected === k ? null : k); return; }
     const r = stage.getBoundingClientRect();
     const fx = (e.clientX - r.left) / r.width;
