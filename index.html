@@ -189,6 +189,7 @@
       <button class="icon-btn" id="pdfBack" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
       <div class="reader-title"><b id="pdfTitle">Book</b><span id="pdfSub"></span></div>
       <button class="icon-btn" id="pdfMark" aria-label="Bookmark this page"><svg viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4z"/></svg></button>
+      <button class="icon-btn" id="pdfArea" aria-label="Highlight an area: drag over the page" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 20h16M7 16l9-9 3 3-9 9H7z"/></svg></button>
       <button class="icon-btn" id="pdfNote" aria-label="Add a note to this page"><svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/></svg></button>
       <button class="icon-btn" id="pdfList" aria-label="Bookmarks, highlights and notes"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
     </div>
@@ -202,6 +203,17 @@
       </div>
       <button type="button" class="btn small" id="pdfHlNote">Add note</button>
     </div>
+    <div class="pdf-hlbar pdf-hlpop" id="pdfHlPop" hidden>
+      <div class="hl-swatches">
+        <button type="button" class="sw" data-phc="yellow" aria-label="Yellow"></button>
+        <button type="button" class="sw" data-phc="green" aria-label="Green"></button>
+        <button type="button" class="sw" data-phc="blue" aria-label="Blue"></button>
+        <button type="button" class="sw" data-phc="pink" aria-label="Pink"></button>
+      </div>
+      <button type="button" class="btn small" id="pdfHlPopNote">Note</button>
+      <button type="button" class="btn small danger" id="pdfHlPopDel">Remove</button>
+    </div>
+    <div class="area-hint" id="pdfAreaHint" hidden>Drag over the part of the page to highlight</div>
     <div class="reader-bar reader-bottom pdf-bottom">
       <button class="icon-btn" id="pdfZoomOut" aria-label="Zoom out"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M8 11h6"/></svg></button>
       <button class="icon-btn" id="pdfZoomIn" aria-label="Zoom in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M8 11h6M11 8v6"/></svg></button>

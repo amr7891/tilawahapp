@@ -2531,8 +2531,9 @@ const pdfReader = {
           <button type="button" class="bm" data-pdf-page="${h.page}"><b><i class="dot hl-dot-${h.color}"></i>Page ${h.page}</b><span class="hl-snip">${esc(h.text || '')}</span></button>
           <button type="button" class="icon-btn" data-pdf-del="${i}" aria-label="Delete highlight"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li>`).join('')}</ul>` : '')
       + (this.notes().length ? `<h3 class="goto-h">Notes</h3><ul class="mistakes">${this.notes().slice().sort((a, b) => a.page - b.page).map(x => `<li class="hl-item">
-          <button type="button" class="bm" data-pdf-note="${x.id}"><b>Page ${x.page}</b>${x.quote ? `<span class="hl-snip">“${esc(x.quote)}”</span>` : ''}<span class="hl-snip">${esc(x.text)}</span></button></li>`).join('')}</ul>` : '')
-      || '<p class="note left">No bookmarks, highlights or notes yet. Tap the bookmark icon to save a page, the note icon to write on a page, or select some text to highlight it or add a note.</p>';
+          <button type="button" class="bm" data-pdf-note="${x.id}"><b>Page ${x.page}</b>${x.quote ? `<span class="hl-snip">“${esc(x.quote)}”</span>` : ''}<span class="hl-snip">${esc(x.text)}</span></button>
+          <button type="button" class="icon-btn" data-pdf-note-del="${x.id}" aria-label="Delete note"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li>`).join('')}</ul>` : '')
+      || '<p class="note left">No bookmarks, highlights or notes yet. Tap the bookmark icon to save a page, the note icon to write on a page, select some text to highlight it or add a note, or tap the marker and drag over any part of a page (also for scanned books).</p>';
     if (!$('#pdfMarksSheet').open) $('#pdfMarksSheet').showModal();
   },
 
@@ -2558,6 +2559,7 @@ const pdfReader = {
 
   close(keepView) {
     this.token++;
+    if (window.pdfAnnot) { pdfAnnot.close(); if (pdfAnnot.area) pdfAnnot.setArea(false); }
     if (this.observer) { this.observer.disconnect(); this.observer = null; }
     try { this.task && this.task.destroy(); } catch (_) {}
     try { this.doc && this.doc.destroy(); } catch (_) {}
@@ -2566,8 +2568,76 @@ const pdfReader = {
   },
 };
 
+// Tap a highlight to recolour it, add a note or remove it; the marker highlights an area
+// (any page, including scanned books whose text can't be selected).
+var pdfAnnot = {
+  cur: null, area: false,
+  hitAt(box, e) {
+    const r = box.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height, n = +box.dataset.page;
+    return pdfReader.hls().find(h => h.page === n && h.rects.some(([a, b, w, hh]) => x >= a && x <= a + w && y >= b - 0.004 && y <= b + hh + 0.004)) || null;
+  },
+  open(h) { this.cur = h; $('#pdfHlPop').hidden = false; $('#pdfHlBar').hidden = true; $$('#pdfHlPop [data-phc]').forEach(b => b.classList.toggle('active', b.dataset.phc === h.color)); },
+  close() { this.cur = null; $('#pdfHlPop').hidden = true; },
+  update(fn) {
+    const list = pdfReader.hls(), h = this.cur && list.find(x => x.id === this.cur.id);
+    if (!h) { this.close(); return; }
+    const keep = fn(h, list);
+    store.set('pdfHl:' + pdfReader.key(), keep || list); pdfReader.repaint(h.page);
+  },
+  setArea(on) { this.area = on; $('#pdfReader').classList.toggle('area-mode', on); $('#pdfArea').setAttribute('aria-pressed', on); $('#pdfAreaHint').hidden = !on; if (on) this.close(); },
+};
+
 (function wirePdf() {
   let t;
+  $('#pdfArea').addEventListener('click', () => pdfAnnot.setArea(!pdfAnnot.area));
+  // Tap on a highlight (when no text is being selected): its menu.
+  $('#pdfPages').addEventListener('click', e => {
+    if (pdfAnnot.area || e.target.closest('.pnote')) return;
+    const sel = window.getSelection(); if (sel && !sel.isCollapsed) return;
+    const box = e.target.closest('.pdf-page'); if (!box) return;
+    const h = pdfAnnot.hitAt(box, e);
+    if (h) pdfAnnot.open(h); else pdfAnnot.close();
+  });
+  $$('#pdfHlPop [data-phc]').forEach(b => b.addEventListener('click', () => { pdfAnnot.update(h => { h.color = b.dataset.phc; }); pdfAnnot.close(); }));
+  $('#pdfHlPopDel').addEventListener('click', () => {
+    const h = pdfAnnot.cur; if (!h) return;
+    pdfAnnot.update((x, list) => list.filter(y => y.id !== x.id));
+    // a note attached to it stays, as a note on the page
+    pdfReader.savePdfNotes(pdfReader.notes().map(n => n.hl === h.id ? Object.assign(n, { hl: null }) : n)); pdfReader.repaint(h.page);
+    pdfAnnot.close(); toast('Highlight removed.');
+  });
+  $('#pdfHlPopNote').addEventListener('click', () => {
+    const h = pdfAnnot.cur; if (!h) return; pdfAnnot.close();
+    const n = pdfReader.notes().find(x => x.hl === h.id);
+    if (n) pdfReader.editNote(n.id); else pdfReader.editNote(null, { page: h.page, quote: h.text || '', hl: h.id, color: h.color });
+  });
+  // Marker: drag a box over the page.
+  let drag = null;
+  $('#pdfPages').addEventListener('pointerdown', e => {
+    if (!pdfAnnot.area) return;
+    const box = e.target.closest('.pdf-page'); if (!box) return;
+    e.preventDefault();
+    const r = box.getBoundingClientRect(), d = document.createElement('div'); d.className = 'area-draft'; box.append(d);
+    drag = { box, r, x0: (e.clientX - r.left) / r.width, y0: (e.clientY - r.top) / r.height, d, id: e.pointerId };
+    box.setPointerCapture && box.setPointerCapture(e.pointerId);
+  });
+  $('#pdfPages').addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const x = Math.min(1, Math.max(0, (e.clientX - drag.r.left) / drag.r.width)), y = Math.min(1, Math.max(0, (e.clientY - drag.r.top) / drag.r.height));
+    const a = Math.min(x, drag.x0), b = Math.min(y, drag.y0); drag.rect = [a, b, Math.abs(x - drag.x0), Math.abs(y - drag.y0)];
+    Object.assign(drag.d.style, { left: a * 100 + '%', top: b * 100 + '%', width: drag.rect[2] * 100 + '%', height: drag.rect[3] * 100 + '%' });
+  });
+  const endDrag = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { box, rect, d } = drag; drag = null; d.remove();
+    if (!rect || rect[2] < 0.02 || rect[3] < 0.008) return;
+    const page = +box.dataset.page, list = pdfReader.hls();
+    list.push({ id: Date.now(), page, rects: [rect], color: 'yellow', text: '', area: true, t: Date.now() });
+    store.set('pdfHl:' + pdfReader.key(), list); pdfReader.repaint(page);
+    pdfAnnot.setArea(false); toast('Highlighted. Tap it to change the colour, add a note or remove it.');
+  };
+  $('#pdfPages').addEventListener('pointerup', endDrag);
+  $('#pdfPages').addEventListener('pointercancel', e => { if (drag && e.pointerId === drag.id) { drag.d.remove(); drag = null; } });
   $('#pdfScroll').addEventListener('scroll', () => {
     clearTimeout(t);
     t = setTimeout(() => {
@@ -2588,6 +2658,8 @@ const pdfReader = {
   $('#pdfMarksBody').addEventListener('click', e => {
     const nb = e.target.closest('[data-pdf-note]');
     if (nb) { $('#pdfMarksSheet').close(); const n = pdfReader.notes().find(x => x.id === +nb.dataset.pdfNote); if (n) { pdfReader.goTo(n.page); setTimeout(() => pdfReader.flash(n.page, n.id), 500); } return; }
+    const nd = e.target.closest('[data-pdf-note-del]');
+    if (nd) { const id = +nd.dataset.pdfNoteDel; const n = pdfReader.notes().find(x => x.id === id); pdfReader.savePdfNotes(pdfReader.notes().filter(x => x.id !== id)); if (n) pdfReader.repaint(n.page); toast('Note removed.'); pdfReader.openMarks(); return; }
     const del = e.target.closest('[data-pdf-del]');
     if (del) {
       const list = pdfReader.hls(); const [h] = list.splice(+del.dataset.pdfDel, 1);

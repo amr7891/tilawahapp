@@ -437,7 +437,7 @@ button.player-meta:hover { background: var(--surface-2); }
 
 /* Book reader */
 .pdf-reader { background: var(--page-bg); }
-.pdf-scroll { position: absolute; inset: 0; overflow: auto; -webkit-overflow-scrolling: touch;
+.pdf-scroll { z-index: 1;  position: absolute; inset: 0; overflow: auto; -webkit-overflow-scrolling: touch;
   padding: calc(64px + env(safe-area-inset-top, 0px)) 8px calc(72px + env(safe-area-inset-bottom, 0px)); }
 .pdf-pages { margin: 0 auto; display: grid; gap: 8px; max-width: none; }
 .pdf-page { position: relative; background: #fff; box-shadow: 0 1px 8px rgba(0,0,0,.18); border-radius: 2px; overflow: hidden; }
@@ -463,8 +463,8 @@ button.player-meta:hover { background: var(--surface-2); }
 .ayah[data-hl="blue"] { background: var(--hl-blue); } .ayah[data-hl="pink"] { background: var(--hl-pink); }
 .hl-swatches { display: flex; gap: 8px; align-items: center; }
 .sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); padding: 0; display: grid; place-items: center; }
-.sw[data-hl="yellow"], .sw[data-phl="yellow"] { background: #F5C542; } .sw[data-hl="green"], .sw[data-phl="green"] { background: #4CAF78; }
-.sw[data-hl="blue"], .sw[data-phl="blue"] { background: #5096E6; } .sw[data-hl="pink"], .sw[data-phl="pink"] { background: #E86EA0; }
+.sw[data-hl="yellow"], .sw[data-phl="yellow"], .sw[data-phc="yellow"] { background: #F5C542; } .sw[data-hl="green"], .sw[data-phl="green"], .sw[data-phc="green"] { background: #4CAF78; }
+.sw[data-hl="blue"], .sw[data-phl="blue"], .sw[data-phc="blue"] { background: #5096E6; } .sw[data-hl="pink"], .sw[data-phl="pink"], .sw[data-phc="pink"] { background: #E86EA0; }
 .sw.none { background: var(--surface-2); } .sw.none svg { width: 14px; height: 14px; }
 .sw.active { box-shadow: 0 0 0 2px var(--ink); }
 .goto-h { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 14px 0 8px; }
@@ -685,6 +685,13 @@ button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -web
 #noteText { width: 100%; box-sizing: border-box; min-height: 9em; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; line-height: 1.5; resize: vertical; }
 .note-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; }
 .note-actions .primary { margin-left: auto; }
+.pdf-hlpop { gap: 8px; }
+.btn.small.danger { color: var(--bad); }
+.area-hint { position: absolute; z-index: 6; left: 50%; transform: translateX(-50%); top: calc(64px + env(safe-area-inset-top, 0px)); padding: 8px 14px; border-radius: 99px; background: var(--ink); color: var(--bg); font-size: 13px; font-weight: 600; white-space: nowrap; }
+#pdfArea[aria-pressed="true"] { color: var(--accent); background: var(--surface-2); }
+.pdf-reader.area-mode .pdf-page { touch-action: none; cursor: crosshair; }
+.pdf-reader.area-mode .textLayer { pointer-events: none; }
+.area-draft { position: absolute; z-index: 4; border: 2px dashed var(--accent); background: rgba(245, 197, 66, .25); pointer-events: none; }
 .pnote { position: absolute; right: 8px; z-index: 6; width: 30px; height: 30px; border-radius: 50% 50% 4px 50%; border: 0; display: grid; place-items: center; background: var(--gold); color: #fff; box-shadow: 0 2px 8px -2px rgba(0,0,0,.4); cursor: pointer; }
 .pnote svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
 #pdfPages > * { position: relative; }
