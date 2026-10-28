@@ -46,7 +46,8 @@
       else u.base += c;
     }
     if (/^[ںن۾م]{3,}$/.test(u.base) || /[ں۾]/.test(u.base)) u.ghunnah = true;
-    if (u.base.length >= 2 && new Set(u.base).size === 1) { u.shadda = true; }
+    // A hidden nun/mim (ںںں, ۾۾۾: ikhfaʾ, iqlab) is one letter held with ghunnah, not a doubled one.
+    if (u.base.length >= 2 && new Set(u.base).size === 1 && !/[ں۾]/.test(u.base)) { u.shadda = true; }
     u.letter = u.base[0] === 'ں' ? 'ن' : u.base[0] === '۾' ? 'م' : u.base[0];
     return u;
   }
