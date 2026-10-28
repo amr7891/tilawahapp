@@ -101,8 +101,70 @@ def refine(res, db, lead=0.12):
     for k in range(len(out)-1): out[k][1]=out[k+1][0]
     return out
 
+# Global alignment for surahs short enough to fit in memory, plus a self-check.
+import numpy as np
+def viterbi_bp(lp, units):
+    S=2*len(units)+1; T=len(lp)
+    lab=np.full(S,B); lab[1::2]=units
+    dp=np.full(S,NEG); dp[0]=lp[0,B]; dp[1]=lp[0,lab[1]]
+    bp=np.zeros((T,S),np.int8)
+    skip=np.zeros(S,bool)
+    if len(units)>1: skip[3::2]=np.array(units[1:])!=np.array(units[:-1])
+    for t in range(1,T):
+        a=dp; b=np.concatenate([[NEG],dp[:-1]]); c=np.concatenate([[NEG,NEG],dp[:-2]]); c=np.where(skip,c,NEG)
+        m=np.maximum(np.maximum(a,b),c)
+        bp[t]=np.where(m==a,0,np.where(m==b,1,2))
+        dp=m+lp[t,lab]
+    s=int(S-1 if dp[S-1]>dp[S-2] else S-2)
+    first=np.full(len(units),-1)
+    for t in range(T-1,-1,-1):
+        if s%2==1: first[s//2]=t
+        s-=int(bp[t,s])
+    return first, max(dp[S-1],dp[S-2])/T
+def align_global(lp, dur, s, n, MS=40):
+    seqs=[ayah_units(s,a) for a in range(1,n+1)]
+    isti,basm=opener_units()
+    body=[u for q in seqs for u in q]
+    # free leading/trailing audio: let the path start/end anywhere by padding with opener options
+    best=None
+    for pre in ([[],basm,isti+basm,isti] if s not in (1,9) else [[],isti]):
+        f,sc=viterbi_bp(lp,list(pre)+body)
+        if best is None or sc>best[1]: best=(f,sc,len(pre))
+    f,sc,np_=best
+    idx=np_; starts=[]
+    for q in seqs: starts.append(int(f[idx])); idx+=len(q)
+    res=[]
+    for k in range(n):
+        b=max(0,starts[k]*MS-150); e=starts[k+1]*MS-150 if k+1<n else int(dur*1000)
+        res.append([b,e])
+    return res
+def selfcheck(lp, res, s):
+    """Share of ayahs whose first sounds heard at the start are far from the text."""
+    ids=lp.argmax(1); bad=0
+    def ed(x,y):
+        D=list(range(len(y)+1))
+        for i in range(1,len(x)+1):
+            P=D[:]; D[0]=i
+            for j in range(1,len(y)+1): D[j]=min(P[j]+1,D[j-1]+1,P[j-1]+(x[i-1]!=y[j-1]))
+        return D[-1]
+    for a,(st,_) in enumerate(res,1):
+        exp=list(ayah_units(s,a))[:6]
+        t=int(st/40); out=[]; prev=-1
+        for k in ids[t:t+50]:
+            if k!=prev and k!=B: out.append(int(k))
+            prev=k
+        if min(ed(exp,out[:k]) for k in range(3,9)) > 3: bad+=1
+    return bad/len(res)
+def align_best(lp, dur, s, n):
+    S=2*sum(len(ayah_units(s,a)) for a in range(1,n+1))+60
+    if len(lp)*S <= 6e8: return align_global(lp,dur,s,n), 'global'
+    return align_long(lp,dur,s,n), 'window'
+
 if __name__=='__main__':
     raw,s,n=sys.argv[1],int(sys.argv[2]),int(sys.argv[3])
     lp,dur=logprobs(raw)
     # usage: align_reciter.py <16 kHz mono s16le file> <surah> <ayah count>
-    print(json.dumps(refine(align_long(lp,dur,s,n), envelope(raw))))
+    res, how = align_best(lp, dur, s, n)   # whole surah in one pass when it fits, else windows
+    res = refine(res, envelope(raw))
+    print(json.dumps(res))
+    print('ayahs whose start does not match the text:', round(selfcheck(lp, res, s), 3), file=sys.stderr)
