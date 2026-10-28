@@ -2195,7 +2195,7 @@ async function renderShelves() {
       <span class="brow-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/></svg></span>
       <span class="info"><b>${esc(b.title)}</b><span>${esc([b.author, b.note].filter(Boolean).join(' · '))}</span></span>
       ${b.mine ? `<button type="button" class="icon-btn brow-rm" data-rm-book="${esc(b.id)}" aria-label="Remove ${esc(b.title)} from this phone"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`
-        : `<span class="chip${got ? ' on' : ''}">${got ? (one ? 'On phone' : `${got}/${b.files.length} on phone`) : 'Get'}</span>`}</a></li>`;
+        : `<span class="chip${got ? ' on' : ''}">${got ? (one ? 'On phone' : `${got}/${b.files.length} on phone`) : 'Download'}</span>`}</a></li>`;
   };
   const mine = myShelfItems();
   const jump = [['mine', 'My books'], ['hadith-nine', 'Hadith'], ...SHELVES.map(sh => [sh.id, sh.title])];
@@ -2205,7 +2205,7 @@ async function renderShelves() {
       (mine.length ? `<ul class="blist">${mine.map(bookRow).join('')}</ul>` : ''), '') +
     shelf('hadith-nine', 'The nine books', 'Al-Kutub at-Tisʿah, as published on Sunnah.com.', H.index.filter(b => b.group === 'nine').map(card).join('')) +
     shelf('hadith-selections', 'Selections', '', H.index.filter(b => b.group === 'selections').map(card).join('')) +
-    SHELVES.map(sh => shelf(sh.id, sh.title + (sh.arabic ? ` <span class="shelf-ar" lang="ar">${sh.arabic}</span>` : ''), `${sh.items.length > 1 ? `${sh.items.length} books` : 'A book'} in English translation. The translations belong to their publishers: tap a book to get it from them, then add the PDF and it opens here.`,
+    SHELVES.map(sh => shelf(sh.id, sh.title + (sh.arabic ? ` <span class="shelf-ar" lang="ar">${sh.arabic}</span>` : ''), `${sh.items.length > 1 ? `${sh.items.length} books` : 'A book'} in English translation. Tap a book to download its PDF, then add it and it opens here.`,
       `<ul class="blist">${sh.items.map(bookRow).join('')}</ul>`, '')).join('') +
     '';
   $('#addBook').addEventListener('click', addMyBook);
@@ -2464,9 +2464,9 @@ const pdfReader = {
     st.innerHTML = `<div class="pdf-need">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/></svg>
       <p><b>${esc(b.title)}</b>${b.files.length > 1 ? ` \u00b7 ${esc(file.label)}` : ''}</p>
-      <p>This translation belongs to its publisher${b.publisher ? ` (${esc(b.publisher)})` : ''}, so it isn\u2019t in the app. Get the PDF from them, then add it here. It stays on this phone, and opens here with your highlights and notes.</p>
+      <p>This translation belongs to its publisher${b.publisher ? ` (${esc(b.publisher)})` : ''}, so it isn\u2019t stored in the app. Download the PDF, then tap <b>Add the PDF</b> and choose it. It stays on this phone and opens here with your highlights and notes.</p>
       <div class="pdf-get">
-        <a class="btn" href="${esc(bookSourceUrl(b))}" target="_blank" rel="noopener">Get this book</a>
+        <a class="btn" href="${esc(file.url && /^https?:/.test(file.url) ? file.url : bookSourceUrl(b))}" target="_blank" rel="noopener" download>Download the PDF</a>
         <button type="button" class="btn primary" id="pdfAdd">Add the PDF</button>
       </div></div>`;
     $('#pdfAdd').addEventListener('click', () => this.addFor(b, fi));
