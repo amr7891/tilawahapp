@@ -1,0 +1,14 @@
+Arabic originals (arbooks/)
+
+The works themselves (by Ibn Qayyim al-Jawziyyah, Ibn Taymiyyah, Ibn Kathir, Umar ibn Ali
+al-Bazzar and Muhammad ibn Abd al-Wahhab) are centuries old and in the public domain.
+
+The digital texts come from the OpenITI corpus (Open Islamicate Texts Initiative,
+https://github.com/OpenITI), released under Creative Commons Attribution-NonCommercial-
+ShareAlike 4.0 International (CC BY-NC-SA 4.0): https://creativecommons.org/licenses/by-nc-sa/4.0/
+Citation: OpenITI, release 2025.1.9, doi:10.5281/zenodo.17767721 (and earlier releases).
+
+Changes made here (tools/build_arbooks.py): the mARkdown was converted to JSON for the
+app's reader; modern editors' introductions, their footnote numbers and the editions'
+indexes were left out; Quran quotations are shown in ornate brackets. The authors' words
+are unchanged. These files are shared under the same license (CC BY-NC-SA 4.0).

@@ -760,3 +760,28 @@ input, textarea, select { font-size: 16px; }
 .pdf-get .btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; color: var(--ink); min-width: 150px; }
 .pdf-get .btn.primary { color: #fff; }
 .pdf-need .pdf-hint { margin-top: 14px; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+
+/* Arabic originals */
+.brow-icon.ar { font-family: var(--font-quran); font-size: 20px; font-weight: 700; line-height: 1; padding-bottom: 6px; }
+.ar-title { font-family: var(--font-quran); font-size: 18px; font-weight: 700; }
+.chip.ar-chip { font-family: var(--font-quran); font-size: 12px; margin-left: auto; }
+.chip.ar-chip + .chip { margin-left: 6px; }
+.bk-sub { margin: 16px 2px 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.arb-head .bh-title { font-family: var(--font-quran); font-size: 24px; color: var(--ink); }
+.arb-head span[lang="ar"] { font-family: var(--font-quran); font-size: 16px; color: var(--ink); }
+.arb-actions { justify-content: flex-start; margin: 4px 0 8px; }
+.arb-bar { display: flex; align-items: center; gap: 10px; padding: 8px 0; background: var(--bg); border-bottom: 1px solid var(--line); }
+.arb-bar .btn { display: inline-flex; align-items: center; text-decoration: none; color: var(--ink); }
+.arb-pos { flex: 1; text-align: center; color: var(--muted); font-size: 13px; }
+.arb-size { display: flex; gap: 2px; }
+.arb-size .icon-btn { font-weight: 700; font-size: 15px; width: 40px; }
+.arb { font-family: var(--font-quran); font-size: var(--arb-size, 21px); line-height: 2; color: var(--ink); padding: 8px 2px 4px; text-align: justify; }
+.arb p { margin: 0 0 .7em; }
+.arb .arb-h { font-size: 1.12em; color: var(--accent); margin: 1.2em 0 .5em; line-height: 1.6; text-align: right; }
+.arb h4.arb-h { font-size: 1.04em; } .arb h5.arb-h { font-size: 1em; }
+.arb-toc { list-style: none; margin: 0; padding: 0; font-family: var(--font-quran); font-size: 18px; }
+.arb-toc li a { display: block; padding: 9px 4px; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; line-height: 1.6; }
+.arb-toc li.l2 a { padding-right: 20px; font-size: 16px; color: var(--muted); }
+.arb-toc.parts { font-family: inherit; font-size: 15px; }
+.arb-credit { color: var(--muted); font-size: 12px; margin: 14px 2px 24px; line-height: 1.5; }
+.arb-toc.parts li a span { display: block; font-family: var(--font-quran); font-size: 16px; color: var(--muted); margin-top: 2px; }

@@ -152,6 +152,20 @@ SHELVES.forEach(sh => {
   });
 });
 
+// The Arabic original of each book (public domain), read in the app's own Arabic reader.
+// Texts from the OpenITI corpus (CC BY-NC-SA 4.0); only the author's words are kept.
+const AR_ORIGINAL = {
+  'ibn-qayyim-1': 'zad', 'ibn-qayyim-2': 'zad', 'ibn-qayyim-3': 'madarij', 'ibn-qayyim-4': 'dawa', 'ibn-qayyim-5': 'fawaid',
+  'ibn-qayyim-6': 'tibb', 'ibn-qayyim-7': 'hadi', 'ibn-qayyim-8': 'ighatha', 'ibn-qayyim-9': ['madarij', 'Its explanation of al-Fatiha opens Madarij al-Salikin.'],
+  'ibn-qayyim-10': 'dawa', 'ibn-qayyim-11': 'wabil', 'ibn-qayyim-12': 'tabukiyya', 'ibn-qayyim-13': 'asrar-salat',
+  'ibn-qayyim-14': ['madarij', 'The chapter on repentance (manzilat al-tawbah) is in Madarij al-Salikin.'],
+  'ibn-qayyim-15': 'uddat', 'ibn-qayyim-16': 'uddat', 'ibn-qayyim-17': 'ruh', 'ibn-qayyim-18': 'munafiqin',
+  'ibn-qayyim-19': 'miftah', 'ibn-qayyim-20': 'miftah', 'ibn-qayyim-22': 'hidayat', 'ibn-qayyim-23': 'tuhfa',
+  'ibn-taymiyyah-1': 'iman', 'ibn-taymiyyah-2': 'iman', 'ibn-taymiyyah-3': ['wasitiyya', 'Ibn Taymiyyah\u2019s text that the commentary explains.'],
+  'ibn-taymiyyah-4': 'furqan', 'ibn-taymiyyah-5': 'amrad', 'ibn-taymiyyah-8': 'mahabba', 'ibn-taymiyyah-9': 'kalim',
+  'ibn-taymiyyah-14': 'siyasa', 'ibn-taymiyyah-15': 'amr', 'ibn-taymiyyah-21': 'alam', 'kitab-at-tawhid': 'tawhid', 'sira-ibn-kathir': 'sira',
+};
+
 // Publishers named on the books' title pages, for finding each book at its source.
 const PUBLISHERS = [
   ['Al-Sira', 'Garnet Publishing'], ['Nature_Of_Fasting', 'Darussalam'], ['Kitab-At-Tauhid', 'Darussalam'],
@@ -160,6 +174,8 @@ const PUBLISHERS = [
   ['Patience_and_Gratitude', 'Ta-Ha Publishers'],
 ];
 SHELVES.forEach(sh => sh.items.forEach(b => {
+  const ar = AR_ORIGINAL[b.id];
+  if (ar) { b.ar = Array.isArray(ar) ? ar[0] : ar; b.arNote = Array.isArray(ar) ? ar[1] : ''; }
   const u = (b.files[0] && b.files[0].url) || '';
   const hit = PUBLISHERS.find(([k]) => u.includes(k));
   if (hit) b.publisher = hit[1];
@@ -615,6 +631,7 @@ async function route() {
   if (h === 'mushaf') { openMushaf(store.get('mushafPage', 1)); warmSpeech(); return; }
   if ((m = h.match(/^hadith-([a-z0-9_]+)(?:-(\d+)(?:-(\d+))?)?$/))) { openLibrary(m[1], m[2] ? +m[2] : null, m[3] ? +m[3] : null); return; }
   if (h === 'inbox') { fileSharedBook(); return; }
+  if ((m = h.match(/^ar-([a-z-]+?)(?:-(\d+)(?:-b(\d+))?)?$/))) { arReader.open(m[1], m[2] != null ? +m[2] : null, m[3] != null ? +m[3] : null); return; }
   if ((m = h.match(/^book-([a-z0-9-]+)$/))) { openBook(m[1]); return; }
   if ((m = h.match(/^read-([a-z0-9-]+?)-(\d+)(?:-p(\d+))?(?:-n(\d+))?$/))) { pdfReader.open(m[1], +m[2], { page: m[3] ? +m[3] : null, note: m[4] ? +m[4] : null }); return; }
   if (h === 'saved') { showView('saved'); scrollTop(); return; }
@@ -1081,6 +1098,8 @@ function onScroll() {
   scrollTimer = setTimeout(() => store.set('lastRead', { n: state.surahNum, a: surahView.visibleAyah() }), 400);
 }
 window.addEventListener('scroll', onScroll, { passive: true });
+window.addEventListener('scroll', () => arReader.scrolled(), { passive: true });
+$('#screen').addEventListener('scroll', () => arReader.scrolled(), { passive: true });
 $('#screen').addEventListener('scroll', onScroll, { passive: true });
 
 /* ------------------------------------------------------------------ */
@@ -2191,20 +2210,24 @@ async function renderShelves() {
   const have = new Set(await bookFiles.keys());
   const bookRow = b => {
     const one = b.files.length === 1;
-    const href = one ? '#read-' + b.id + '-0' : '#book-' + b.id;
+    const href = one && !b.ar ? '#read-' + b.id + '-0' : '#book-' + b.id;
     const got = b.files.filter((_, i) => have.has(`${b.id}:${i}`)).length;
     return `<li><a class="brow" href="${href}">
       <span class="brow-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/></svg></span>
       <span class="info"><b>${esc(b.title)}</b><span>${esc([b.author, b.note].filter(Boolean).join(' · '))}</span></span>
       ${b.mine ? `<button type="button" class="icon-btn brow-rm" data-rm-book="${esc(b.id)}" aria-label="Remove ${esc(b.title)} from this phone"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`
-        : `<span class="chip${got ? ' on' : ''}">${got ? (one ? 'On phone' : `${got}/${b.files.length} on phone`) : 'Download'}</span>`}</a></li>`;
+        : (b.ar ? '<span class="chip ar-chip" lang="ar">عربي</span>' : '') + `<span class="chip${got ? ' on' : ''}">${got ? (one ? 'On phone' : `${got}/${b.files.length} on phone`) : 'English'}</span>`}</a></li>`;
   };
   const mine = myShelfItems();
-  const jump = [['mine', 'My books'], ['hadith-nine', 'Hadith'], ...SHELVES.map(sh => [sh.id, sh.title])];
+  await arCatalog();
+  const jump = [['mine', 'My books'], ['arabic', 'Arabic'], ['hadith-nine', 'Hadith'], ...SHELVES.map(sh => [sh.id, sh.title])];
   box.innerHTML = `<nav class="chips" aria-label="Library sections">${jump.map(([id, t]) => `<button type="button" class="chip-btn" data-shelf="${id}">${esc(t)}</button>`).join('')}</nav>` +
     shelf('mine', 'My books', 'Add any PDF from your phone. It stays on this phone, with your highlights and notes.',
       `<button type="button" class="btn add-book" id="addBook"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add a book</button>` +
       (mine.length ? `<ul class="blist">${mine.map(bookRow).join('')}</ul>` : ''), '') +
+    shelf('arabic', 'Arabic originals <span class="shelf-ar" lang="ar">الكتب بالعربية</span>', 'The classical books in the authors\u2019 own Arabic, inside the app and offline once opened.',
+      `<ul class="blist">${AR_BOOKS.map(a => `<li><a class="brow" href="#ar-${a.slug}"><span class="brow-icon ar" aria-hidden="true" lang="ar">ع</span>
+        <span class="info"><b lang="ar" dir="rtl" class="ar-title">${esc(a.title)}</b><span lang="ar" dir="rtl">${esc(a.author)}</span></span></a></li>`).join('')}</ul>`, '') +
     shelf('hadith-nine', 'The nine books', 'Al-Kutub at-Tisʿah, as published on Sunnah.com.', H.index.filter(b => b.group === 'nine').map(card).join('')) +
     shelf('hadith-selections', 'Selections', '', H.index.filter(b => b.group === 'selections').map(card).join('')) +
     SHELVES.map(sh => shelf(sh.id, sh.title + (sh.arabic ? ` <span class="shelf-ar" lang="ar">${sh.arabic}</span>` : ''), `${sh.items.length > 1 ? `${sh.items.length} books` : 'A book'} in English translation. Tap a book to download its PDF, then add it and it opens here.`,
@@ -2320,21 +2343,27 @@ async function removeMyBook(id) {
   if (state.view === 'library') renderShelves();
 }
 
-function openBook(id) {
+async function openBook(id) {
   showView('library');
+  await arCatalog();
   const found = findBook(id);
   if (!found) { location.hash = 'library'; return; }
   const { b, sh } = found;
   $('#backBtn').hidden = false;
   state.libBack = 'library';
   setTitle(sh.title, b.title);
+  const arb = b.ar && (AR_BOOKS.find(a => a.slug === b.ar) || null);
   $('#library').innerHTML = `
     <div class="book-head"><b class="bh-title">${esc(b.title)}</b><span>${esc(b.author)}</span></div>
+    ${b.ar ? `<h3 class="bk-sub">Arabic original</h3>
+    <ul class="blist"><li><a class="brow" href="#ar-${b.ar}"><span class="brow-icon ar" aria-hidden="true" lang="ar">ع</span>
+      <span class="info"><b lang="ar" dir="rtl" class="ar-title">${esc(arb ? arb.title : '')}</b><span>${esc(b.arNote || 'Read the whole book in Arabic, here in the app.')}</span></span></a></li></ul>
+    <h3 class="bk-sub">English translation</h3>` : ''}
     <ul class="blist">${b.files.map((f, i) => {
       const pos = store.get(`pdfPos:${b.id}:${i}`, null);
       return `<li><a class="brow" href="#read-${b.id}-${i}">
       <span class="brow-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/></svg></span>
-      <span class="info"><b>${esc(f.label)}</b><span>${pos ? `Continue from page ${pos}` : 'Read'}</span></span></a></li>`;
+      <span class="info"><b>${esc(b.files.length > 1 ? f.label : 'English translation (PDF)')}</b><span>${pos ? `Continue from page ${pos}` : 'Download it, then add it to read here'}</span></span></a></li>`;
     }).join('')}</ul>`;
   scrollTop();
 }
@@ -2419,6 +2448,105 @@ async function renderChapter(b, i, num, inline) {
   if (num) requestAnimationFrame(() => { const want = hadithId(String(num)); const el = document.getElementById('h-' + want) || [...list.querySelectorAll('.hadith')].find(x => new RegExp(`^h-${want}[a-z]$`).test(x.id)); if (el) { el.scrollIntoView({ block: 'start' }); el.classList.add('flash'); } });
   else if (!inline) scrollTop();
 }
+
+/* ------------------------------------------------------------------ */
+/*  Arabic originals reader                                            */
+/* ------------------------------------------------------------------ */
+
+let AR_BOOKS = [];
+async function arCatalog() {
+  if (!AR_BOOKS.length) { try { AR_BOOKS = await (await fetch('arbooks/catalog.json')).json(); } catch (_) {} }
+  return AR_BOOKS;
+}
+const arReader = {
+  slug: null, idx: null, part: null, saveT: null,
+  async index(slug) {
+    if (this.slug === slug && this.idx) return this.idx;
+    const r = await fetch(`arbooks/${slug}/index.json`);
+    if (!r.ok) throw new Error(r.status);
+    this.idx = await r.json(); this.slug = slug;
+    return this.idx;
+  },
+  size() { return store.get('arSize', 21); },
+  async open(slug, part, block) {
+    showView('library');
+    state.libBack = part == null ? 'library' : 'ar-' + slug;
+    const box = $('#library');
+    box.innerHTML = '<p class="empty">Opening the book…</p>';
+    let idx;
+    try { idx = await this.index(slug); } catch (_) { box.innerHTML = '<p class="empty">This book could not load. Check your connection and try again.</p>'; return; }
+    $('#backBtn').hidden = false;
+    if (part == null) { this.cover(slug, idx); return; }
+    part = Math.max(0, Math.min(idx.parts - 1, part));
+    setTitle(idx.title, idx.author);
+    let blocks;
+    try { blocks = await (await fetch(`arbooks/${slug}/p${part}.json`)).json(); }
+    catch (_) { box.innerHTML = '<p class="empty">This part of the book could not load. Check your connection and try again.</p>'; return; }
+    const tocHere = idx.toc.filter(t => t[2] === part);
+    box.innerHTML = `
+      <div class="arb-bar">
+        <a class="btn small" href="#ar-${slug}">Contents</a>
+        <span class="arb-pos">Part ${part + 1} of ${idx.parts}</span>
+        <span class="arb-size"><button type="button" class="icon-btn" data-arb-size="-1" aria-label="Smaller text">A−</button><button type="button" class="icon-btn" data-arb-size="1" aria-label="Larger text">A+</button></span>
+      </div>
+      <article class="arb" dir="rtl" lang="ar" style="--arb-size:${this.size()}px">${blocks.map(([l, t], i) => l
+        ? `<h${l + 2} class="arb-h" data-b="${i}" id="arb-${i}">${esc(t)}</h${l + 2}>` : `<p data-b="${i}" id="arb-${i}">${esc(t)}</p>`).join('')}</article>
+      <nav class="h-pager">
+        ${part > 0 ? `<a class="btn" href="#ar-${slug}-${part - 1}">Previous part</a>` : '<span></span>'}
+        ${part < idx.parts - 1 ? `<a class="btn primary" href="#ar-${slug}-${part + 1}">Next part</a>` : ''}
+      </nav>
+      <p class="arb-credit">${esc(idx.title)} — text from the OpenITI corpus (CC BY-NC-SA 4.0), the author\u2019s words only.</p>`;
+    this.part = part;
+    box.querySelectorAll('[data-arb-size]').forEach(b => b.addEventListener('click', () => {
+      const v = Math.max(15, Math.min(34, this.size() + 2 * +b.dataset.arbSize));
+      store.set('arSize', v); box.querySelector('.arb').style.setProperty('--arb-size', v + 'px');
+    }));
+    const target = block != null ? block : (() => { const p = store.get('arPos:' + slug, null); return p && p[0] === part ? p[1] : null; })();
+    if (target) { const el = document.getElementById('arb-' + target); if (el) setTimeout(() => el.scrollIntoView({ block: 'start' }), 30); else scrollTop(); }
+    else scrollTop();
+    store.set('arPos:' + slug, [part, target || 0]);
+    // Remember the place as the reader scrolls.
+    this.els = [...box.querySelectorAll('.arb [data-b]')];
+    // Keep the next part ready for reading offline.
+    if (part < idx.parts - 1) fetch(`arbooks/${slug}/p${part + 1}.json`).catch(() => {});
+  },
+  scrolled() {
+    if (state.view !== 'library' || !this.els || !this.els.length || !this.els[0].isConnected) return;
+    clearTimeout(this.saveT);
+    const slug = this.slug, part = this.part;
+    this.saveT = setTimeout(() => {
+      let cur = this.els[0];
+      for (const el of this.els) { if (el.getBoundingClientRect().top > 90) break; cur = el; }
+      if (cur) store.set('arPos:' + slug, [part, +cur.dataset.b]);
+    }, 300);
+  },
+  cover(slug, idx) {
+    this.els = null;
+    setTitle(idx.title, idx.author);
+    const pos = store.get('arPos:' + slug, null);
+    const box = $('#library');
+    const tocs = idx.toc.filter(t => t[0] <= Math.min(2, Math.max(...idx.toc.map(x => x[0]), 1)));
+    box.innerHTML = `
+      <div class="book-head arb-head"><b class="bh-title" lang="ar" dir="rtl">${esc(idx.title)}</b><span lang="ar" dir="rtl">${esc(idx.author)}</span>
+        <span>${idx.words.toLocaleString()} words · ${idx.parts} part${idx.parts > 1 ? 's' : ''}</span></div>
+      <div class="pdf-get arb-actions">
+        <a class="btn primary" href="#ar-${slug}-${pos ? pos[0] : 0}${pos && pos[1] ? '-b' + pos[1] : ''}">${pos ? 'Continue reading' : 'Start reading'}</a>
+        <button type="button" class="btn" id="arbSave">Save for offline</button>
+      </div>
+      ${tocs.length >= 3 && tocs.length <= 250 ? `<h3 class="bk-sub">Contents</h3><ol class="arb-toc" dir="rtl" lang="ar">${tocs.map(([l, t, p, b]) => `<li class="l${l}"><a href="#ar-${slug}-${p}-b${b}">${esc(t)}</a></li>`).join('')}</ol>`
+        : `<h3 class="bk-sub">Parts</h3><ol class="arb-toc parts">${Array.from({ length: idx.parts }, (_, i) => { const f = idx.toc.find(t => t[2] === i); return `<li><a href="#ar-${slug}-${i}"><b>Part ${i + 1}</b>${f ? ` <span lang="ar" dir="rtl">${esc(f[1].slice(0, 70))}</span>` : ''}</a></li>`; }).join('')}</ol>`}
+      <p class="arb-credit">Text from the OpenITI corpus (CC BY-NC-SA 4.0). Modern editors\u2019 introductions and footnote numbers are left out; the author\u2019s words are unchanged.</p>`;
+    scrollTop();
+    $('#arbSave').addEventListener('click', async e => {
+      const btn = e.currentTarget; btn.disabled = true;
+      let done = 0;
+      try {
+        for (let i = 0; i < idx.parts; i++) { const r = await fetch(`arbooks/${slug}/p${i}.json`); if (!r.ok) throw 0; await r.arrayBuffer(); btn.textContent = `Saving… ${Math.round(++done / idx.parts * 100)}%`; }
+        btn.textContent = 'Saved for offline'; toast('The whole book is on this phone now.');
+      } catch (_) { btn.disabled = false; btn.textContent = 'Save for offline'; toast('Couldn\u2019t save the book. Check your connection and try again.', 'bad'); }
+    });
+  },
+};
 
 /* ------------------------------------------------------------------ */
 /*  Book reader (PDF.js)                                               */
