@@ -522,15 +522,25 @@ function goBack(fallback) {
   else location.hash = fallback;
 }
 
+// Warm up the speech model when a reader opens, if it's already on the phone (no download
+// unasked), so the first tap on the mic starts listening straight away.
+let warmed = false;
+function warmSpeech() {
+  if (warmed || !window.QuranSpeech || !QuranSpeech.supported() || settings.engine === 'browser' || !('caches' in window)) return;
+  warmed = true;
+  const go = () => caches.match('models/quran-phoneme/model.int8.onnx', { ignoreSearch: true }).then(hit => { if (hit) QuranSpeech.preload(); else warmed = false; }).catch(() => { warmed = false; });
+  (window.requestIdleCallback || (f => setTimeout(f, 2500)))(go, { timeout: 4000 });
+}
+
 async function route() {
   document.querySelectorAll('dialog[open]').forEach(d => d.close());
   const h = decodeURIComponent(location.hash.slice(1)) || 'quran';
   if (navStack.length > 1 && navStack[navStack.length - 2] === h) navStack.pop();
   else if (navStack[navStack.length - 1] !== h) navStack.push(h);
   let m;
-  if ((m = h.match(/^surah-(\d+)(?:-(\d+))?$/))) { openSurah(+m[1], m[2] ? +m[2] : null); return; }
-  if ((m = h.match(/^page-(\d+)$/))) { openMushaf(+m[1]); return; }
-  if (h === 'mushaf') { openMushaf(store.get('mushafPage', 1)); return; }
+  if ((m = h.match(/^surah-(\d+)(?:-(\d+))?$/))) { openSurah(+m[1], m[2] ? +m[2] : null); warmSpeech(); return; }
+  if ((m = h.match(/^page-(\d+)$/))) { openMushaf(+m[1]); warmSpeech(); return; }
+  if (h === 'mushaf') { openMushaf(store.get('mushafPage', 1)); warmSpeech(); return; }
   if ((m = h.match(/^hadith-([a-z0-9_]+)(?:-(\d+)(?:-(\d+))?)?$/))) { openLibrary(m[1], m[2] ? +m[2] : null, m[3] ? +m[3] : null); return; }
   if ((m = h.match(/^book-([a-z0-9-]+)$/))) { openBook(m[1]); return; }
   if ((m = h.match(/^read-([a-z0-9-]+?)-(\d+)(?:-p(\d+))?(?:-n(\d+))?$/))) { pdfReader.open(m[1], +m[2], { page: m[3] ? +m[3] : null, note: m[4] ? +m[4] : null }); return; }

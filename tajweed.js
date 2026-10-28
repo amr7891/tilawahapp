@@ -216,6 +216,8 @@
       if (!atEdge) return false;
       const u = o.op === 'ins' ? units[H[o.y].id] : units[X[o.x]];
       if (!u) return false;
+      // Same letter, same doubling, only the haraka differs: that's a real haraka mistake.
+      if (o.op === 'sub') { const v = units[H[o.y].id]; if (v && v.letter === u.letter && v.shadda === u.shadda && v.haraka !== u.haraka && !u.madd) return false; }
       const l = u.letter || u.maddChar;
       return edgeLetter.has(l) && (l === 'و' || l === 'ي' || l === 'ۥ' || l === 'ۦ' || u.shadda || (o.op !== 'sub' && (H[o.y - 1] && units[H[o.y - 1].id] && units[H[o.y - 1].id].letter === l || H[o.y + 1] && units[H[o.y + 1].id] && units[H[o.y + 1].id].letter === l)));
     };
@@ -273,13 +275,17 @@
         if ((prevH && prevH.id === H[o.y].id) || (nextH && nextH.id === H[o.y].id)) continue;
         if (o.x < X.length && X[o.x] === H[o.y].id) continue;
         if (o.x > 0 && X[o.x - 1] === H[o.y].id) continue;
-        if (yu.madd) { if (yu.madd <= 2) continue; e = { type: 'madd', sev: 'tajweed', exp: '', got: yu.str, msg: 'Extra lengthening' }; }
+        if (yu.madd) {
+          // A long vowel said where the vowel is short (inside the word, model sure) changes the word.
+          if (yu.madd <= 2 && (sure(H, o.y) < 0.9 || o.x >= X.length || o.x === 0)) continue;
+          e = yu.madd <= 2 ? { type: 'madd', sev: 'wrong', exp: '', got: yu.str, msg: 'Extra long vowel: keep this vowel short' } : { type: 'madd', sev: 'tajweed', exp: '', got: yu.str, msg: 'Extra lengthening' };
+        }
         else if ((yu.letter === 'ن' || yu.letter === 'م') && units[X[o.x]] && units[X[o.x]].shadda) {
           const l = units[X[o.x]].letter;
           e = { type: 'idgham', sev: 'tajweed', exp: '', got: yu.str, msg: 'لر'.includes(l) ? `Idghām without ghunnah: merge the nun completely into the ${lname(l)}` : yu.letter === 'م' && l === 'م' ? 'Idghām mithlayn: merge the mim into the next mim, with ghunnah' : `Idghām with ghunnah: merge the nun into the ${lname(l)}, keeping the ghunnah` };
         } else if (yu.letter === 'ل' && !yu.haraka && units[X[o.x]] && units[X[o.x]].shadda && SUN.includes(units[X[o.x]].letter)) e = { type: 'idgham', sev: 'wrong', exp: '', got: yu.str, msg: `Lām shamsiyyah: don't say the lam; double the ${lname(units[X[o.x]].letter)}` };
         else if (heardMaybe(H, o.y, -1, 1)) continue;
-        else e = { type: 'extra', sev: 'wrong', exp: '', got: yu.str, msg: `Extra sound: ${yu.str}`, weak: sure(H, o.y) < 0.98 };
+        else e = { type: 'extra', sev: 'wrong', exp: '', got: yu.str, msg: `Extra sound: ${yu.str}`, weak: sure(H, o.y) < 0.9 };
       }
       if (!e) continue;
       if (low) { if (e.sev === 'wrong' && e.type !== 'extra') { e.conf = conf; doubt.push(e); } continue; }
