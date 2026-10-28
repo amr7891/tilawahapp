@@ -9,6 +9,19 @@ const APP_NAME = 'Tilawah';
 // The Quran text and page layout ship with the app (mushaf/madinah):
 // King Fahd Complex Madinah Mushaf 1441 AH, 604 pages, 15 lines.
 const MUSHAF_BASE = 'mushaf/madinah/';
+// Tajweed colours: the King Fahd Complex's colour-coded pages (QPC V4 tajweed fonts,
+// one per page, loaded from Quran.com's font server and kept on the phone once seen).
+const TAJWEED_BASE = 'mushaf/v4/';
+const TAJWEED_FONT = n => `https://verses.quran.foundation/fonts/quran/hafs/v4/colrv1/woff2/p${n}.woff2`;
+// The tajweed fonts carry palettes: 0 light, 1 dark, 2 sepia. Register the dark one per font.
+const tajweedFams = new Set();
+function tajweedPalette(fam) {
+  tajweedFams.add(fam);
+  let el = document.getElementById('tajweedPalettes');
+  if (!el) { el = document.createElement('style'); el.id = 'tajweedPalettes'; document.head.append(el); }
+  const list = [...tajweedFams].join(', ');
+  el.textContent = `@font-palette-values --tajweed-dark { font-family: ${list}; base-palette: 1; }`;
+}
 
 // English translation (Sahih International) ships in /data/translation, saved exactly
 // as published by the Al Quran Cloud API.
@@ -16,19 +29,32 @@ const MUSHAF_BASE = 'mushaf/madinah/';
 // Ayah-by-ayah reciters. `id` is the folder name on everyayah.com
 // (audio URL = AUDIO_BASE/<id>/<SSS><AAA>.mp3). Replace or extend freely.
 const AUDIO_BASE = 'https://everyayah.com/data';
+const MP3Q = 'https://cdn.mp3quran.net/audio/';
 const RECITERS = [
-  { id: 'Muhammad_Ayyoub_128kbps', name: 'Muhammad Ayyub', arabic: 'محمد أيوب' },
-  { id: 'Husary_128kbps', name: 'Mahmoud Khalil Al-Husary', arabic: 'محمود خليل الحصري' },
-  { id: 'Abdurrahmaan_As-Sudais_192kbps', name: 'Abdur-Rahman as-Sudais', arabic: 'عبد الرحمن السديس' },
-  { id: 'MaherAlMuaiqly128kbps', name: 'Maher Al-Muaiqly', arabic: 'ماهر المعيقلي' },
-  { id: 'Abdul_Basit_Murattal_192kbps', name: 'Abdul Basit Abdus-Samad', arabic: 'عبد الباسط عبد الصمد', style: 'Murattal' },
+  { id: 'Abdul_Basit_Murattal_192kbps', name: 'Abdul Basit Abdus-Samad', arabic: 'عبد الباسط عبد الصمد' },
   { id: 'Abdul_Basit_Mujawwad_128kbps', name: 'Abdul Basit Abdus-Samad', arabic: 'عبد الباسط عبد الصمد', style: 'Mujawwad' },
+  { id: 'Abdullaah_3awwaad_Al-Juhaynee_128kbps', name: 'Abdullah Awad Al-Juhany', arabic: 'عبد الله عواد الجهني' },
+  { id: 'Abdurrahmaan_As-Sudais_192kbps', name: 'Abdur-Rahman as-Sudais', arabic: 'عبد الرحمن السديس' },
   { id: 'Abu_Bakr_Ash-Shaatree_128kbps', name: 'Abu Bakr al-Shatri', arabic: 'أبو بكر الشاطري' },
-  { id: 'mp3quran-221', name: 'Raad Muhammad al-Kurdi', arabic: 'رعد محمد الكردي', timed: { read: 221, base: 'https://cdn.mp3quran.net/audio/raad-kurdi/r1/' } },
-  { id: 'mp3quran-30', name: 'Saad al-Ghamdi', arabic: 'سعد الغامدي', timed: { read: 30, base: 'https://cdn.mp3quran.net/audio/saad-ghamdi/r1/' } },
+  { id: 'mp3quran-137', name: 'Ahmed Talib bin Humaid', arabic: 'أحمد طالب بن حميد', timed: { read: 137, base: MP3Q + 'ahmad-humaid/r1/' }, missing: [9, 14, 16, 17, 23, 24, 33] },
+  { id: 'Hudhaify_128kbps', name: 'Ali Al-Huthaify', arabic: 'علي بن عبد الرحمن الحذيفي' },
+  { id: 'Fares_Abbad_64kbps', name: 'Fares Abbad', arabic: 'فارس عباد' },
+  { id: 'mp3quran-273', name: 'Haitham Al-Dokhin', arabic: 'هيثم الدخين', timed: { read: 273, base: MP3Q + 'haitham-dukhain/r1/' } },
+  { id: 'mp3quran-299', name: 'Hassan Saleh', arabic: 'حسن صالح', timed: { read: 299, base: MP3Q + 'hassan-saleh/r1/' } },
+  { id: 'Husary_128kbps', name: 'Mahmoud Khalil Al-Husary', arabic: 'محمود خليل الحصري' },
+  { id: 'MaherAlMuaiqly128kbps', name: 'Maher Al-Muaiqly', arabic: 'ماهر المعيقلي' },
+  { id: 'Alafasy_128kbps', name: 'Mishary Rashid Alafasy', arabic: 'مشاري راشد العفاسي' },
+  { id: 'Muhammad_Ayyoub_128kbps', name: 'Muhammad Ayyub', arabic: 'محمد أيوب' },
+  { id: 'mp3quran-340', name: 'Muhammad Barhaji', arabic: 'محمد برهجي', timed: { read: 340, base: MP3Q + 'muhammad-burhaji/r1/' } },
+  { id: 'Minshawy_Murattal_128kbps', name: 'Muhammad Siddiq Al-Minshawi', arabic: 'محمد صديق المنشاوي' },
+  { id: 'Minshawy_Mujawwad_192kbps', name: 'Muhammad Siddiq Al-Minshawi', arabic: 'محمد صديق المنشاوي', style: 'Mujawwad' },
+  { id: 'mp3quran-221', name: 'Raad Muhammad al-Kurdi', arabic: 'رعد محمد الكردي', timed: { read: 221, base: MP3Q + 'raad-kurdi/r1/' } },
+  { id: 'mp3quran-30', name: 'Saad al-Ghamdi', arabic: 'سعد الغامدي', timed: { read: 30, base: MP3Q + 'saad-ghamdi/r1/' } },
   { id: 'Saood_ash-Shuraym_128kbps', name: 'Saud al-Shuraim', arabic: 'سعود الشريم' },
   { id: 'Yasser_Ad-Dussary_128kbps', name: 'Yasser al-Dossari', arabic: 'ياسر الدوسري' },
 ];
+RECITERS.sort((x, y) => x.name.localeCompare(y.name) || (x.style ? 1 : 0) - (y.style ? 1 : 0));
+const reciterGroups = () => [['Murattal', RECITERS.filter(r => !r.style)], ['Mujawwad', RECITERS.filter(r => r.style === 'Mujawwad')]];
 // Reciters with `timed` play a full-surah recording from MP3Quran, cut into ayahs
 // with MP3Quran's published ayah timings. All others play EveryAyah's per-ayah files.
 
@@ -178,6 +204,9 @@ const Q = {
   meta: null, metaP: null,
   all: [], start: [],            // every ayah in order as [surah, ayah]; index of each surah's first ayah
   pages: new Map(), fonts: new Map(),
+  base() { return settings.tajweed ? TAJWEED_BASE : MUSHAF_BASE; },
+  // Switching between plain and tajweed pages: forget the loaded pages.
+  reset() { this.pages = new Map(); this.chunks = new Map(); },
 
   load() {
     if (!this.metaP) {
@@ -219,8 +248,9 @@ const Q = {
   font(fid) {
     if (!this.fonts.has(fid)) {
       const file = fid === 'B' ? 'QCF4_QBSML.woff2' : `QCF4_Hafs_${fid}_W.woff2`;
-      const face = new FontFace(this.fam(fid), `url(${MUSHAF_BASE}fonts/${file})`, { display: 'block' });
-      const p = face.load().then(f => { document.fonts.add(f); return f; });
+      const url = fid[0] === 'T' ? TAJWEED_FONT(fid.slice(1)) : `${MUSHAF_BASE}fonts/${file}`;
+      const face = new FontFace(this.fam(fid), `url(${url})`, { display: 'block' });
+      const p = face.load().then(f => { document.fonts.add(f); if (fid[0] === 'T') tajweedPalette(this.fam(fid)); return f; });
       p.catch(() => this.fonts.delete(fid));
       this.fonts.set(fid, p);
     }
@@ -231,7 +261,7 @@ const Q = {
   chunks: new Map(),
   chunk(c) {
     if (!this.chunks.has(c)) {
-      const pr = fetchJSON(`${MUSHAF_BASE}pages/${String(c).padStart(2, '0')}.json`);
+      const pr = fetchJSON(`${this.base()}pages/${String(c).padStart(2, '0')}.json`);
       pr.catch(() => this.chunks.delete(c));
       this.chunks.set(c, pr);
     }
@@ -296,11 +326,11 @@ const Q = {
 /* ------------------------------------------------------------------ */
 
 const settings = Object.assign({
-  reciter: RECITERS[0].id, repeat: 1, fontSize: 30, translation: false, tafsir: false,
+  reciter: 'Muhammad_Ayyoub_128kbps', repeat: 1, fontSize: 30, translation: false, tafsir: false,
   autoNext: true, hide: false, listenRepeat: false, speed: 1, mistakePopups: true, mushaf: 'madinah', readMode: 'mushaf',
-  engine: 'quran', checkLevel: 'tajweed',
+  engine: 'quran', checkLevel: 'tajweed', tajweed: true,
 }, store.get('settings', {}));
-if (!RECITERS.some(r => r.id === settings.reciter)) settings.reciter = RECITERS[0].id;
+if (!RECITERS.some(r => r.id === settings.reciter)) settings.reciter = 'Muhammad_Ayyoub_128kbps';
 settings.mushaf = 'madinah';
 
 const state = { view: 'list', surahNum: null, surahData: null, selected: null };
@@ -370,14 +400,18 @@ function reciterName() { const r = currentReciter(); return r.name + (r.style ==
 
 // Ayah timings for full-surah recordings, per reciter and surah.
 const timings = new Map();
-function getTimings(read, s) {
-  const k = read + ':' + s;
+function getTimings(timed, s) {
+  const k = (timed.local || timed.read) + ':' + s;
   if (!timings.has(k)) {
-    const p = fetchJSON(`https://mp3quran.net/api/v3/ayat_timing?surah=${s}&read=${read}`).then(list => {
-      const byAyah = {};
-      list.forEach(t => { if (t.ayah > 0) byAyah[t.ayah] = [t.start_time / 1000, t.end_time / 1000]; });
-      return byAyah;
-    });
+    // Our own timings (data/timings/<reciter>/<surah>.json, [[start, end] ms per ayah]),
+    // worked out by aligning the recording with the Quran phoneme model; or MP3Quran's.
+    const p = timed.local
+      ? fetchJSON(`data/timings/${timed.local}/${s}.json`).then(list => { const byAyah = {}; list.forEach((t, i) => { byAyah[i + 1] = [t[0] / 1000, t[1] / 1000]; }); return byAyah; })
+      : fetchJSON(`https://mp3quran.net/api/v3/ayat_timing?surah=${s}&read=${timed.read}`).then(list => {
+        const byAyah = {};
+        list.forEach(t => { if (t.ayah > 0) byAyah[t.ayah] = [t.start_time / 1000, t.end_time / 1000]; });
+        return byAyah;
+      });
     p.catch(() => timings.delete(k));
     timings.set(k, p);
   }
@@ -385,6 +419,7 @@ function getTimings(read, s) {
 }
 
 function applySettings() {
+  document.documentElement.classList.toggle('tajweed-on', !!settings.tajweed);
   document.documentElement.style.setProperty('--quran-size', settings.fontSize + 'px');
   document.querySelectorAll('#readMode .mode').forEach(b => {
     const on = b.dataset.read === settings.readMode;
@@ -577,6 +612,7 @@ const mushaf = {
     this.page = p;
     if (state.selected && !d.words.some(w => `${w.s}:${w.a}` === state.selected)) this.select(null);
     this.render(d, dir);
+    if ($('#pageStage').classList.contains('scroll') && !this.keepScroll) $('#pageStage').scrollTop = 0;
     store.set('mushafPage', p);
     this.updateBars(d);
     [p + 1, p - 1, p + 2].forEach(n => { if (n >= 1 && n <= 604) Q.pageReady(n).catch(() => {}); });
@@ -629,8 +665,12 @@ const mushaf = {
     const w = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const h = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
     const ratio = 0.66;
-    const pw = Math.floor(Math.min(w, h * ratio));
-    const ph = Math.floor(Math.min(h, pw / ratio));
+    // Phones held sideways: the page fills the width and scrolls, like a printed page held close.
+    const sideways = stage.clientWidth > stage.clientHeight * 1.05 && stage.clientHeight < 700;
+    stage.classList.toggle('scroll', sideways);
+    let pw, ph;
+    if (sideways) { pw = Math.floor(Math.min(w, 720)); ph = Math.floor(pw / ratio); }
+    else { pw = Math.floor(Math.min(w, h * ratio)); ph = Math.floor(Math.min(h, pw / ratio)); }
     page.style.width = pw + 'px';
     page.style.height = ph + 'px';
     const body = page.querySelector('.mbody');
@@ -935,11 +975,12 @@ const player = {
     this.mediaSession();
     updateControls();
     const fail = () => { if (t === this.token) { toast('Could not play this recitation. Check your connection.', 'bad'); this.stop(); } };
+    if (r.missing && r.missing.includes(s)) { toast(`${r.name} has no recording of ${Q.ch(s).en}. Choose another reciter for this surah.`, 'bad'); this.stop(); return; }
     this.applySpeed();
     if (r.timed) {
       // Full-surah file: seek to the ayah and stop at its end time.
       let times;
-      try { times = await getTimings(r.timed.read, s); } catch (_) { fail(); return; }
+      try { times = await getTimings(r.timed, s); } catch (_) { fail(); return; }
       if (t !== this.token) return;
       this.span = times[a];
       if (!this.span) { fail(); return; }
@@ -965,8 +1006,8 @@ const player = {
     this.audio.preservesPitch = true;
   },
 
-  pause() { this.audio.pause(); this.playing = false; paintWords(); updateControls(); },
-  stop() { this.audio.pause(); this.playing = false; paintWords(); updateControls(); },
+  pause() { this.audio.pause(); this.playing = false; media.set('paused'); paintWords(); updateControls(); },
+  stop() { this.audio.pause(); this.playing = false; media.set('paused'); paintWords(); updateControls(); },
 
   resumeOr(startFn) {
     if (this.playing) { this.pause(); return; }
@@ -1012,21 +1053,64 @@ const player = {
 player.audio.addEventListener('loadedmetadata', () => player.applySpeed());
 player.audio.addEventListener('ended', () => { if (player.playing) player.ended(); });
 // Full-surah recordings: treat reaching the ayah's end time as the end of the ayah.
-setInterval(() => {
+// Checked on a timer and on 'timeupdate', which keeps firing when the phone is locked.
+function checkSpan() {
   const p = player;
   if (p.playing && p.span && !p.audio.paused && p.audio.currentTime >= p.span[1] - 0.05) {
     const sameSurahNext = !p.once && p.left <= 1 && !settings.listenRepeat && settings.autoNext && p.gi < p.end && Q.all[p.gi + 1][0] === Q.all[p.gi][0];
     if (!sameSurahNext) p.audio.pause();
     p.ended();
   }
-}, 80);
+}
+setInterval(checkSpan, 80);
+player.audio.addEventListener('timeupdate', checkSpan);
+
+// Lock screen, Control Centre, headphones and car controls.
+const media = {
+  set(state) {
+    if (!('mediaSession' in navigator)) return;
+    try { navigator.mediaSession.playbackState = state; } catch (_) {}
+  },
+  position() {
+    if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
+    const a = player.audio;
+    try {
+      if (player.span) navigator.mediaSession.setPositionState({ duration: Math.max(0.1, player.span[1] - player.span[0]), position: Math.min(Math.max(0, a.currentTime - player.span[0]), player.span[1] - player.span[0]), playbackRate: a.playbackRate || 1 });
+      else if (isFinite(a.duration) && a.duration > 0) navigator.mediaSession.setPositionState({ duration: a.duration, position: Math.min(a.currentTime, a.duration), playbackRate: a.playbackRate || 1 });
+    } catch (_) {}
+  },
+};
+// Keep the app's state in step with the audio when it's paused or resumed from outside the app.
+let switching = false;
+player.audio.addEventListener('emptied', () => { switching = true; setTimeout(() => { switching = false; }, 400); });
+player.audio.addEventListener('play', () => { media.set('playing'); if (!player.playing && player.gi >= 0) { player.playing = true; paintWords(); updateControls(); } });
+player.audio.addEventListener('pause', () => {
+  if (switching || player.audio.ended) return;
+  // Pauses the app makes itself between ayahs are followed by play straight away.
+  setTimeout(() => {
+    if (player.audio.paused && player.playing && !player.audio.ended) { player.playing = false; paintWords(); updateControls(); }
+    if (player.audio.paused) media.set('paused');
+  }, 250);
+});
+player.audio.addEventListener('loadedmetadata', () => media.position());
 if ('mediaSession' in navigator) {
-  try {
-    navigator.mediaSession.setActionHandler('play', () => player.resumeOr(() => {}));
-    navigator.mediaSession.setActionHandler('pause', () => player.pause());
-    navigator.mediaSession.setActionHandler('previoustrack', () => player.step(-1));
-    navigator.mediaSession.setActionHandler('nexttrack', () => player.step(1));
-  } catch (_) {}
+  const on = (action, fn) => { try { navigator.mediaSession.setActionHandler(action, fn); } catch (_) {} };
+  on('play', () => {
+    if (player.gi < 0) return;
+    if (player.audio.paused && player.audio.src && !player.audio.ended && (!player.span || player.audio.currentTime < player.span[1] - 0.1)) {
+      player.playing = true; player.audio.play().catch(() => {}); paintWords(); updateControls();
+    } else { const [s, a] = Q.all[player.gi]; player.play(s, a, { end: player.end }); }
+  });
+  on('pause', () => player.pause());
+  on('stop', () => player.stop());
+  on('previoustrack', () => player.step(-1));
+  on('nexttrack', () => player.step(1));
+  on('seekto', d => {
+    if (d.seekTime == null) return;
+    player.audio.currentTime = player.span ? player.span[0] + d.seekTime : d.seekTime;
+    media.position();
+  });
+  on('seekbackward', null); on('seekforward', null);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1458,12 +1542,13 @@ $('#speedRow').addEventListener('click', e => {
 
 function openReciters() {
   syncSpeed();
-  $('#reciterList').innerHTML = RECITERS.map(r => `
+  $('#reciterList').innerHTML = reciterGroups().map(([g, list]) => `<li class="ro-group">${g}</li>` + list.map(r => `
     <li><label class="reciter-opt">
       <input type="radio" name="reciter" value="${esc(r.id)}"${r.id === settings.reciter ? ' checked' : ''}>
-      <span class="ro-text"><b>${esc(r.name)}</b><span>${esc(r.style || 'Murattal')}</span></span>
+      <span class="ro-text"><b>${esc(r.name)}</b><span>${esc(r.style || 'Murattal')}${r.missing ? ' · not every surah' : ''}</span></span>
       <span class="ro-ar" lang="ar">${esc(r.arabic)}</span>
-    </label></li>`).join('');
+    </label></li>`).join('')).join('');
+  const cur = $('#reciterList input:checked'); if (cur) setTimeout(() => cur.closest('li').scrollIntoView({ block: 'center' }), 50);
   $('#reciterSheet').showModal();
 }
 function setReciter(id) {
@@ -2144,11 +2229,12 @@ document.documentElement.classList.toggle('standalone', install.standalone());
 
 function initSettingsSheet() {
   const sel = $('#setReciter');
-  sel.innerHTML = RECITERS.map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
+  sel.innerHTML = reciterGroups().map(([g, list]) => `<optgroup label="${g}">${list.map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</optgroup>`).join('');
   const sync = () => {
     sel.value = settings.reciter;
     $('#setRepeat').value = String(settings.repeat);
     $('#setFont').value = settings.fontSize;
+    $('#setTajweed').checked = !!settings.tajweed;
     $('#setTranslation').checked = settings.translation;
     $('#setTafsir').checked = settings.tafsir;
     $('#setAutoNext').checked = settings.autoNext;
@@ -2166,6 +2252,13 @@ function initSettingsSheet() {
   sel.addEventListener('change', () => setReciter(sel.value));
   $('#setRepeat').addEventListener('change', e => { settings.repeat = +e.target.value; saveSettings(); });
   $('#setFont').addEventListener('input', e => { settings.fontSize = +e.target.value; saveSettings(); });
+  $('#setTajweed').addEventListener('change', e => {
+    settings.tajweed = e.target.checked; saveSettings();
+    document.documentElement.classList.toggle('tajweed-on', settings.tajweed);
+    Q.reset();
+    if (state.view === 'mushaf') mushaf.show(mushaf.page);
+    else if (state.view === 'surah') route();
+  });
   $('#setTranslation').addEventListener('change', e => {
     settings.translation = e.target.checked; saveSettings();
     if (state.view === 'surah') { if (settings.translation) surahView.loadTranslation(state.surahNum); else surahView.showTranslations(); }

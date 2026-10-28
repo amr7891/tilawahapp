@@ -227,6 +227,19 @@
     <div class="sheet-head"><h2>Settings</h2><button class="icon-btn" value="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <h3 class="set-group">Reading</h3>
     <label class="field"><span>Text view size</span><input id="setFont" type="range" min="22" max="48" step="2"></label>
+    <label class="toggle"><input id="setTajweed" type="checkbox"><span><b>Tajweed colours</b><small>The colour-coded mushaf of the King Fahd Complex. Each page's colours download the first time you open it.</small></span></label>
+    <details class="tj-legend"><summary>What the colours mean</summary>
+      <ul>
+        <li><i style="background:#b50000"></i>Madd lazim: 6 counts</li>
+        <li><i style="background:#f40000"></i>Madd wajib (muttasil): 4 or 5 counts</li>
+        <li><i style="background:#ff7b00"></i>Madd jaʾiz (munfasil, ʿarid): 2, 4 or 6 counts</li>
+        <li><i style="background:#ce9e00"></i>Natural madd: 2 counts</li>
+        <li><i style="background:#09b000"></i>Ghunnah: ikhfaʾ, idgham with ghunnah, nun and mim mushaddad</li>
+        <li><i style="background:#2fadff"></i>Qalqalah</li>
+        <li><i style="background:#3f48e6"></i>Tafkhim: heavy ra</li>
+        <li><i style="background:#a5a5a5"></i>Letters written but not pronounced</li>
+      </ul>
+    </details>
     <label class="toggle"><input id="setTranslation" type="checkbox"><span><b>Show English translation</b><small>Sahih International, under each ayah in text view</small></span></label>
     <label class="toggle"><input id="setTafsir" type="checkbox"><span><b>Show tafsir</b><small>Tafsir Ibn Kathir (English, abridged), under each passage in text view</small></span></label>
     <h3 class="set-group">Listening</h3>

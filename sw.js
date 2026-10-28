@@ -5,7 +5,7 @@
 // - Books: each PDF is downloaded once, then read from the phone.
 // - Recitation audio streams from EveryAyah / MP3Quran (not from this site) and the
 //   ayahs you play are kept so they replay offline.
-const SHELL = 'tilawah-shell-v12';
+const SHELL = 'tilawah-shell-v13';
 const DATA = 'tilawah-data-v4';
 const BOOKS = 'tilawah-books-v1';
 const AUDIO = 'tilawah-audio-v1';
@@ -66,6 +66,8 @@ self.addEventListener('fetch', e => {
   // Ayah timings for full-surah reciters.
   if (/mp3quran\.net$/.test(url.hostname) && url.pathname.includes('ayat_timing')) { e.respondWith(cacheFirst(req)); return; }
 
+  // Tajweed page fonts: kept once a page has been opened.
+  if (url.hostname === 'verses.quran.foundation') { e.respondWith(cacheFirst(req)); return; }
   if (url.origin !== self.location.origin) return;
 
   if (/\/books\/.+\.pdf$/i.test(url.pathname)) { e.respondWith(cacheFirst(req, BOOKS)); return; }

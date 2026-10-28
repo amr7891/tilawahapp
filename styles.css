@@ -598,3 +598,34 @@ button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -web
 .word-why { margin: 6px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
 .mistakes .icon-btn { order: 2; }
 .mistakes .why { order: 3; }
+
+/* Landscape on phones: the page fills the width and scrolls. */
+.page-stage.scroll { display: block; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding-top: calc(64px + env(safe-area-inset-top, 0px)); padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+.page-stage.scroll .mpage { margin: 0 auto; }
+.page-stage.scroll .page-status { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+@media (orientation: landscape) and (max-height: 520px) {
+  .ayah-bar { bottom: calc(66px + env(safe-area-inset-bottom, 0px)); gap: 6px; padding: 8px 10px 10px; }
+  .ab-act { padding: 6px 2px 5px; }
+  .ab-act svg { width: 18px; height: 18px; }
+  .trans-card { max-height: 62vh; }
+  .heard { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .topbar { padding-top: max(6px, env(safe-area-inset-top, 0px)); }
+}
+.ro-group { list-style: none; margin: 14px 4px 4px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.ro-group:first-child { margin-top: 0; }
+
+/* Tajweed colours */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mpage, :root:not([data-theme="light"]) .qtext { font-palette: --tajweed-dark; } }
+:root[data-theme="dark"] .mpage, :root[data-theme="dark"] .qtext { font-palette: --tajweed-dark; }
+/* In colour mode the letters keep their tajweed colours, so recitation marks show as tints. */
+.tajweed-on .w.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.tajweed-on .w.wrong { background: color-mix(in srgb, var(--bad) 26%, transparent); box-shadow: inset 0 -2px 0 var(--bad); }
+.tajweed-on .w.tajweed { background: color-mix(in srgb, var(--taj) 24%, transparent); box-shadow: inset 0 -2px 0 var(--taj); }
+.tajweed-on .w.skip { background: color-mix(in srgb, var(--skip) 26%, transparent); }
+.tajweed-on .qtext .w.wrong, .tajweed-on .qtext .w.tajweed, .tajweed-on .qtext .w.skip, .tajweed-on .qtext .w.ok { text-decoration: none; border-radius: 4px; }
+.tj-legend { margin: -4px 0 10px 44px; font-size: 13px; color: var(--muted); }
+.tj-legend summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.tj-legend ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.tj-legend li { display: flex; align-items: center; gap: 8px; }
+.tj-legend i { width: 14px; height: 14px; border-radius: 4px; flex: none; }

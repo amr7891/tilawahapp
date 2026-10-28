@@ -5,7 +5,7 @@
   "start_url": "./#quran",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#F3F5F1",
   "theme_color": "#1E5C4C",
   "icons": [
