@@ -97,6 +97,14 @@
       byStr.set(s, id); maxLen = Math.max(maxLen, [...s].length);
     });
     ref = refData; index = null;
+    // Alignment costs for every pair of units, worked out once (alignment runs these millions
+    // of times while the reader recites).
+    NU = units.length + 1;
+    SUB = new Float32Array(NU * NU); INS = new Float32Array(NU); DEL = new Float32Array(NU);
+    for (let x = 0; x < NU; x++) {
+      INS[x] = units[x] && units[x].madd ? 0.5 : 1; DEL[x] = units[x] && units[x].madd ? 0.6 : 1;
+      for (let y = 0; y < NU; y++) SUB[x * NU + y] = subCost0(x, y);
+    }
   }
 
   // Longest-match tokenizer, keeping each unit's character range.
@@ -153,7 +161,9 @@
   function word(s, a, pos) { const w = ayahWords(s, a); return w ? w[pos - 1] || null : null; }
 
   // ---- alignment ----
-  function subCost(x, y) {
+  let NU = 0, SUB = null, INS = null, DEL = null;
+  function subCost(x, y) { return x < NU && y < NU && x >= 0 && y >= 0 ? SUB[x * NU + y] : subCost0(x, y); }
+  function subCost0(x, y) {
     if (x === y) return 0;
     const X = units[x], Y = units[y];
     if (!X || !Y) return 1;
@@ -163,20 +173,25 @@
     if (X.letter && Y.letter && near(X.letter, Y.letter)) return 0.8;
     return 1;
   }
-  const insCost = y => (units[y] && units[y].madd ? 0.5 : 1);
-  const delCost = x => (units[x] && units[x].madd ? 0.6 : 1);
+  const insCost = y => (y < NU ? INS[y] : units[y] && units[y].madd ? 0.5 : 1);
+  const delCost = x => (x < NU ? DEL[x] : units[x] && units[x].madd ? 0.6 : 1);
 
   function distance(X, Y, y0, y1) {
     const n = X.length, m = y1 - y0;
     let prev = new Float32Array(m + 1), cur = new Float32Array(m + 1);
-    for (let j = 1; j <= m; j++) prev[j] = prev[j - 1] + insCost(Y[y0 + j - 1].id);
+    const ys = new Int32Array(m);
+    for (let j = 0; j < m; j++) ys[j] = Y[y0 + j].id;
+    for (let j = 1; j <= m; j++) prev[j] = prev[j - 1] + insCost(ys[j - 1]);
     for (let i = 1; i <= n; i++) {
-      cur[0] = prev[0] + delCost(X[i - 1]);
+      const x = X[i - 1], dc = delCost(x), row = x < NU ? x * NU : -1;
+      cur[0] = prev[0] + dc;
       for (let j = 1; j <= m; j++) {
-        const yid = Y[y0 + j - 1].id;
-        cur[j] = Math.min(prev[j] + delCost(X[i - 1]), cur[j - 1] + insCost(yid), prev[j - 1] + subCost(X[i - 1], yid));
+        const yid = ys[j - 1];
+        const sc = row >= 0 && yid < NU ? SUB[row + yid] : subCost0(x, yid);
+        let v = prev[j] + dc; const b = cur[j - 1] + insCost(yid); if (b < v) v = b; const c = prev[j - 1] + sc; if (c < v) v = c;
+        cur[j] = v;
       }
-      [prev, cur] = [cur, prev];
+      const t = prev; prev = cur; cur = t;
     }
     return prev[m];
   }
@@ -434,6 +449,15 @@
     const status = new Array(words.length).fill(null), errors = new Array(words.length).fill(null);
     let p = 0, y = 0, afterPause = true, guard = 0;
     const W = j => (words[j] ? (words[j].free ? null : word(words[j].s, words[j].a, words[j].pos)) : null);
+    // The same word is often tried at the same place many times over (looking back for a
+    // repeat, ahead for a skip): work each one out once per check.
+    const memo = new Map();
+    const BM = (q, yy, ap) => {
+      const key = q * 4194304 + yy * 2 + (ap ? 1 : 0);
+      let m = memo.get(key);
+      if (m === undefined) { const w = W(q); m = w ? bestMatch(w, W(q + 1), H, yy, ap, final) : null; memo.set(key, m); }
+      return m && Object.assign({}, m);
+    };
     // An opening taʿawwudh or basmala before the first ayah is not part of the check.
     const ends = [];   // where in H each judged word ends (for the app to resume from)
     if (!opts.noOpener && words.length) {
@@ -459,7 +483,7 @@
       if (pauses && pauses.has(y)) afterPause = true;
       const need = Math.max(w.wasl.length, w.waqf ? w.waqf.length : 0) + 2;
       if (!final && H.length - y < need && !(pauses && [...pauses].some(q => q > y))) break;
-      const cur = bestMatch(w, W(p + 1), H, y, afterPause, final);
+      const cur = BM(p, y, afterPause);
       if (!cur) break;
 
       // How well do the next few words read from here, starting at word q?
@@ -467,7 +491,7 @@
         let cost = 0, len = 0, used = 0;
         for (let i = 0; i < n && q + i < words.length && yy < H.length; i++) {
           const wq = W(q + i); if (!wq) continue;
-          const m = bestMatch(wq, W(q + i + 1), H, yy, i === 0, final);
+          const m = BM(q + i, yy, i === 0);
           if (!m) break;
           cost += m.norm * wq.wasl.length; len += wq.wasl.length; yy += m.k; used++;
         }
@@ -495,7 +519,7 @@
           }
           if (skip) { for (let j = 0; j < skip; j++) { status[p + j] = 'skip'; errors[p + j] = null; ends[p + j] = y; } p += skip; continue; }
           // A stray sound before the word?
-          const nx = bestMatch(w, W(p + 1), H, y + 1, afterPause, final);
+          const nx = BM(p, y + 1, afterPause);
           if (nx && nx.norm < cur.norm - 0.3) { y++; continue; }
         }
       }
@@ -519,7 +543,7 @@
       else if (!pauseAfter && nw && exU && !exU.madd && y + cur.k + 1 < H.length && sure(H, y + cur.k) >= 0.95
           && (opts.level || 'tajweed') !== 'words' && !(opts.room > (opts.roomPoor == null ? 0.08 : opts.roomPoor))
           && units[nw.wasl[0]] && exU.letter !== units[nw.wasl[0]].letter && (!lastU || exU.letter !== lastU.letter)) {
-        const a = bestMatch(nw, W(p + 2), H, y + cur.k, false, final), b = bestMatch(nw, W(p + 2), H, y + cur.k + 1, false, final);
+        const a = BM(p + 1, y + cur.k, false), b = BM(p + 1, y + cur.k + 1, false);
         if (a && b && b.norm < 0.12 && b.norm + 0.2 < a.norm) {
           errs = errs.concat([{ type: 'extra', sev: 'wrong', exp: '', got: exU.str, msg: `Extra sound at the end: ${exU.str}` }]);
           cur.k++;

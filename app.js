@@ -1541,7 +1541,18 @@ const rec = {
 
   listenModel() {
     const eng = QuranSpeech.create({
-      onUnits: (units, pauses) => { if (this.r !== eng || !this.active) return; this.H = units; this.P = pauses; this.update(false); },
+      onUnits: (units, pauses) => {
+        if (this.r !== eng || !this.active) return;
+        this.H = units; this.P = pauses;
+        // On a slow phone, check only the latest of what was heard instead of falling behind
+        // working through every step.
+        if (this.upT) return;
+        this.upT = setTimeout(() => {
+          this.upT = null;
+          if (this.r !== eng || !this.active) return;
+          const t = performance.now(); this.update(false); this.upCost = performance.now() - t;
+        }, Math.min(600, 2 * (this.upCost || 0)));
+      },
       onState: (st, info) => {
         if (this.r !== eng || !this.active) return;
         const heard = $('#heardText');

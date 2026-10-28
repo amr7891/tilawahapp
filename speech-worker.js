@@ -16,6 +16,25 @@ let io = null, session = null, loading = null;
 let fb = null, frames = [], pos = 0, states = null, busy = false, flushing = false;
 let prev = -1, blankRun = 0, nUnits = 0, frameNo = 0;
 const PAUSE_FRAMES = 8; // 8 × 40 ms of silence = a pause
+// After a pause the model starts afresh: carried over across a long recitation, its memory
+// made it miss the first words after a pause (they came out as "skipped").
+const RESET_FRAMES = 15; // 0.6 s of silence
+let fresh = false;
+// …warmed up on the last second heard (two steps), so the next sound isn't missed.
+const WARM_CHUNKS = 2;
+async function warmStart() {
+  states = zeroStates();
+  const T = io.chunkFrames, shift = io.chunkShift, D = io.featureDim;
+  for (let b = WARM_CHUNKS; b >= 1; b--) {
+    const at = pos - b * shift;
+    if (at < 0 || at + T > frames.length) continue;
+    const x = new Float32Array(T * D);
+    for (let i = 0; i < T; i++) x.set(frames[at + i], i * D);
+    const out = await session.run(Object.assign({ [io.featureInput]: new ort.Tensor('float32', x, [1, T, D]) }, states));
+    const next = {}; for (const st of io.states) next[st.input] = out[st.output];
+    states = next;
+  }
+}
 let pending = [], pendingPauses = [];
 
 async function fetchCached(url) {
@@ -59,7 +78,7 @@ function zeroStates() {
 function reset() {
   fb = Fbank.makeFbank({ bins: io.featureDim, highFreq: -400, snipEdges: false });
   frames = []; pos = 0; states = zeroStates();
-  prev = -1; blankRun = 0; nUnits = 0; frameNo = 0; pending = []; pendingPauses = [];
+  prev = -1; blankRun = 0; nUnits = 0; frameNo = 0; pending = []; pendingPauses = []; fresh = false;
 }
 
 async function runChunks() {
@@ -95,8 +114,10 @@ async function runChunks() {
         prev = k; frameNo++;
       }
       pos += shift;
+      if (blankRun >= RESET_FRAMES) { if (!fresh) { fresh = true; prev = -1; await warmStart(); } }
+      else fresh = false;
       // keep memory small
-      if (pos > 2000) { frames = frames.slice(pos); pos = 0; }
+      if (pos > 2000) { const keep = WARM_CHUNKS * shift; frames = frames.slice(pos - keep); pos = keep; }
       if (pending.length || pendingPauses.length) {
         self.postMessage({ type: 'units', units: pending, pauses: pendingPauses, silence: blankRun >= PAUSE_FRAMES });
         pending = []; pendingPauses = [];

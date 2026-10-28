@@ -78,7 +78,10 @@
         worker.postMessage({ type: 'reset' });
         onState(ready ? 'listening' : 'loading', null);
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+          // The phone's noise suppression and echo cancellation blur exactly the sounds the
+          // model listens for (sibilants, ghunnah, qalqalah), so they're off; only the volume
+          // is evened out.
+          stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true, channelCount: 1 } });
         } catch (e) {
           onError(e && e.name === 'NotAllowedError' ? 'not-allowed' : 'audio-capture');
           return false;
