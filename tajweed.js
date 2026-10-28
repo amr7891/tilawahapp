@@ -381,8 +381,9 @@
     const W = j => (words[j] ? (words[j].free ? null : word(words[j].s, words[j].a, words[j].pos)) : null);
     // An opening taʿawwudh or basmala before the first ayah is not part of the check.
     const ends = [];   // where in H each judged word ends (for the app to resume from)
-    if (!opts.noOpener && words.length && !(words[0].s === 1 && words[0].a === 1)) {
-      for (const k of ['0:1', '0:2']) {
+    if (!opts.noOpener && words.length) {
+      // Al-Fatiha's basmala is its first ayah, so only the taʿawwudh is skipped before it.
+      for (const k of (words[0].s === 1 && words[0].a === 1 ? ['0:1'] : ['0:1', '0:2'])) {
         const ws = ayahWords(+k[0], +k[2]); if (!ws) continue;
         const seq = [].concat(...ws.slice(0, -1).map(w => w.wasl));
         let best = null;
@@ -458,6 +459,17 @@
         errs = errs.concat([{ type: 'madd', sev: 'wrong', exp: '', got: exU.str, msg: `Extra long vowel at the end: keep the ${HARAKA_NAMES[lastU.haraka]} short` }]);
         cur.k++;
       }
+      // An extra sound said between this word and the next (the next word reads clearly better
+      // without it) is this word's mistake, not the next word's.
+      else if (!pauseAfter && nw && exU && !exU.madd && y + cur.k + 1 < H.length && sure(H, y + cur.k) >= 0.95
+          && (opts.level || 'tajweed') !== 'words' && !(opts.room > (opts.roomPoor == null ? 0.08 : opts.roomPoor))
+          && units[nw.wasl[0]] && exU.letter !== units[nw.wasl[0]].letter && (!lastU || exU.letter !== lastU.letter)) {
+        const a = bestMatch(nw, W(p + 2), H, y + cur.k, false, final), b = bestMatch(nw, W(p + 2), H, y + cur.k + 1, false, final);
+        if (a && b && b.norm < 0.12 && b.norm + 0.2 < a.norm) {
+          errs = errs.concat([{ type: 'extra', sev: 'wrong', exp: '', got: exU.str, msg: `Extra sound at the end: ${exU.str}` }]);
+          cur.k++;
+        }
+      }
       // The recording stopped in the middle of this word: don't judge the unsaid part.
       if (final && y + cur.k >= H.length && errs.length && errs.every(e => e.type === 'missing' || (e.type === 'madd' && !e.got))) {
         const said = cur.k / Math.max(1, cur.form.units.length);
@@ -531,21 +543,61 @@
     index = { seq, at, tri };
     return index;
   }
+  // A basmala (Al-Fatiha 1:1) heard first may open any surah: decide from what follows it.
+  // Where an opening taʿawwudh (أعوذ بالله من الشيطان الرجيم) heard first ends in H; -1 if none,
+  // null if it may still be going on.
+  function openerEnd(H) {
+    const ws = ayahWords(0, 1); if (!ws) return -1;
+    const seq = [].concat(...ws.slice(0, -1).map(w => w.wasl));
+    let best = null;
+    for (const last of [ws[ws.length - 1].wasl, ws[ws.length - 1].waqf].filter(Boolean)) {
+      const X = seq.concat(last);
+      if (H.length < X.length + 2) {                 // not all heard yet: is it the start of it?
+        const n = distance(X.slice(0, Math.max(3, H.length - 1)), H, 0, H.length) / Math.max(3, H.length - 1);
+        if (n < 0.35) return null;
+        continue;
+      }
+      for (let kk = Math.max(1, X.length - 4); kk <= X.length + 4 && kk <= H.length; kk++) {
+        const n = distance(X, H, 0, kk) / X.length;
+        if (!best || n < best.n) best = { n, kk };
+      }
+    }
+    return best && best.n < 0.35 ? best.kk : -1;
+  }
   function find(H) {
+    const oe = openerEnd(H);
+    if (oe === null) return null;
+    if (oe > 0) { const r = findAfterOpener(H.slice(oe)); return r && Object.assign(r, { skip: r.skip + oe }); }
+    return findAfterOpener(H);
+  }
+  function findAfterOpener(H) {
+    const r = find0(H, false);
+    if (!r || !(r.s === 1 && r.a === 1)) return r;
+    const w11 = ayahWords(1, 1); if (!w11) return r;
+    let left = 0; for (let i = r.pos - 1; i < w11.length; i++) left += w11[i].wasl.length;
+    const end = r.skip + left, rest = H.slice(end);
+    if (rest.length < 10) return null;                 // wait for the words after the basmala
+    const r2 = find0(rest, true);
+    if (!r2) return null;
+    if (r2.s === 1 && r2.a === 2) return r;            // Al-Fatiha: start at its basmala
+    return Object.assign(r2, { skip: r2.skip + end });
+  }
+  function find0(H, noBasmala) {
     if (H.length < 8) return null;
     const { seq, at, tri } = buildIndex();
-    const votes = new Map();
+    const votes = new Map(), first = new Map();   // first: the earliest heard sound that matched there
     for (let i = 0; i + 2 < H.length; i++) {
       const l = tri.get(H[i].id * 65536 + H[i + 1].id * 256 + H[i + 2].id);
       if (!l || l.length > 40) continue;
-      l.forEach(q => { const st = q - i; votes.set(st, (votes.get(st) || 0) + 1); });
+      l.forEach(q => { const st = q - i; votes.set(st, (votes.get(st) || 0) + 1); if (!first.has(st)) first.set(st, i); });
     }
     // Candidate places (nearby offsets merged), strongest first.
     const cands = [...votes.entries()].sort((a, b) => b[1] - a[1]);
     const places = [];
     for (const [st, n] of cands) {
+      if (noBasmala) { const t = at[Math.max(0, Math.min(at.length - 1, st + 2))]; if (t && t[0] === 1 && t[1] === 1) continue; }
       const p = places.find(x => Math.abs(x.st - st) <= 4);
-      if (p) p.n += n; else if (places.length < 6) places.push({ st, n });
+      if (p) { p.n += n; p.first = Math.min(p.first, first.get(st)); } else if (places.length < 6) places.push({ st, n, first: first.get(st) });
     }
     if (!places.length) return null;
     let best = places[0];
@@ -563,8 +615,9 @@
       if (!scored.length || scored[0].d > 0.35 || (scored[1] && scored[1].d - scored[0].d < 0.15 && Math.abs(scored[1].p.st - scored[0].p.st) > 4) || H.length < 12) return null;
       best = scored[0].p;
     }
-    // Start at the first whole word heard.
-    let k = Math.max(0, -best.st);
+    // Start at the first whole word heard that matches there (sounds before it, such as a
+    // basmala, belong to no ayah here).
+    let k = Math.max(0, -best.st, best.first || 0);
     while (best.st + k < at.length && best.st + k > 0 && at[best.st + k - 1] === at[best.st + k]) k++;
     if (best.st + k >= at.length || k >= H.length) return null;
     const [s, a, pos] = at[best.st + k];
