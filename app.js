@@ -1776,10 +1776,31 @@ function openReciters() {
       <input type="radio" name="reciter" value="${esc(r.id)}"${r.id === settings.reciter ? ' checked' : ''}>
       <span class="ro-text"><b>${esc(r.name)}</b><span>${esc(r.style || 'Murattal')}${r.missing ? ' · not every surah' : ''}</span></span>
       <span class="ro-ar" lang="ar">${esc(r.arabic)}</span>
-    </label></li>`).join('')).join('');
+    </label></li>`.replace('<li>', `<li data-find="${esc(reciterKey(r))}">`)).join('')).join('');
+  $('#reciterSearch').value = ''; filterReciters();
   const cur = $('#reciterList input:checked'); if (cur) setTimeout(() => cur.closest('li').scrollIntoView({ block: 'center' }), 50);
   $('#reciterSheet').showModal();
 }
+// Search: English or Arabic, ignoring harakat, hamza forms, "al-", spaces and dashes.
+function findKey(t) {
+  return String(t || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f\u064b-\u065f\u0670\u06d6-\u06ed\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/(^|\s)(al|el|ال)[\s-]?/g, '$1').replace(/[^a-z0-9\u0600-\u06ff]+/g, '');
+}
+function reciterKey(r) { return [r.name, r.arabic, r.style, r.id].map(findKey).join('|'); }
+function filterReciters() {
+  const q = findKey($('#reciterSearch').value);
+  let any = false, group = null, groupHas = false;
+  const close = () => { if (group) group.hidden = !groupHas; };
+  $('#reciterList').querySelectorAll('li').forEach(li => {
+    if (li.classList.contains('ro-group')) { close(); group = li; groupHas = false; return; }
+    const hit = !q || li.dataset.find.includes(q);
+    li.hidden = !hit; if (hit) { groupHas = true; any = true; }
+  });
+  close();
+  $('#reciterNone').hidden = any;
+}
+$('#reciterSearch').addEventListener('input', filterReciters);
+$('#reciterSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const first = $('#reciterList li:not([hidden]) input'); if (first) { first.checked = true; setReciter(first.value); $('#reciterSheet').close(); } } });
 function setReciter(id) {
   if (!RECITERS.some(r => r.id === id)) return;
   settings.reciter = id; saveSettings();

@@ -340,6 +340,8 @@ a.surah-row { color: inherit; text-decoration: none; }
 .reciter-chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 button.player-meta { border: 0; background: transparent; padding: 4px 6px; border-radius: 10px; text-align: left; cursor: pointer; }
 button.player-meta:hover { background: var(--surface-2); }
+.reciter-search { margin: 0 0 12px; }
+#reciterNone { text-align: center; color: var(--muted); margin: 18px 0; }
 .reciter-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .reciter-opt { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
 .reciter-opt:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
