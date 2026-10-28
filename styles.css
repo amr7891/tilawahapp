@@ -719,7 +719,7 @@ button, .tab, .surah-row, .brow, .hbook, .juz { touch-action: manipulation; -web
 .sr-text > span { font-size: 14px; color: var(--ink); opacity: .85; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
 .saved-home { margin: 18px 0 6px; }
 /* Home: shortcuts, bookmark cards, the Quran section */
-.quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0 4px; }
+.quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 4px; }
 .qa { display: grid; justify-items: center; gap: 2px; padding: 12px 4px 10px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; font: inherit; text-align: center; cursor: pointer; }
 .qa:hover { border-color: var(--accent); }
 .qa-ic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); margin-bottom: 4px; }
@@ -785,3 +785,21 @@ input, textarea, select { font-size: 16px; }
 .arb-toc.parts { font-family: inherit; font-size: 15px; }
 .arb-credit { color: var(--muted); font-size: 12px; margin: 14px 2px 24px; line-height: 1.5; }
 .arb-toc.parts li a span { display: block; font-family: var(--font-quran); font-size: 16px; color: var(--muted); margin-top: 2px; }
+
+/* Library, tidied: tabs, search, filters, one row per book */
+.lib-tabs { margin-bottom: 14px; }
+.lib-search { margin-bottom: 10px; }
+.lib-filters { margin: 0 -16px 6px; padding: 0 16px 2px; }
+.lib-filters .chip-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.lib-how { margin: 4px 2px 14px; }
+.ar-chip-inline { font-family: var(--font-quran); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); border-radius: 99px; padding: 0 8px; font-size: 13px; }
+.lib-h { margin: 18px 2px 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.lib-h-note { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px; }
+.lib-group:first-of-type .lib-h { margin-top: 6px; }
+.brow .info .brow-ar { font-family: var(--font-quran); font-size: 16px; color: var(--accent); line-height: 1.5; }
+.brow-tags { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; margin-left: auto; flex: none; }
+.brow-tags .chip { margin: 0; }
+.chip.ar-chip { margin-left: 0; }
+.brow .info { gap: 1px; }
+.brow .info .brow-ar { margin: 0; line-height: 1.35; }
+.ar-chip-inline { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0 0 5px; box-sizing: border-box; border-radius: 5px; font-size: 15px; line-height: 1; vertical-align: -5px; }

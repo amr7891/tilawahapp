@@ -668,7 +668,7 @@ function renderSurahList() {
   $('#surahList').innerHTML = rows.length ? rows.map(c => `
     <li><button class="surah-row" data-n="${c.n}">
       <span class="star">${c.n}</span>
-      <span class="info"><b>${esc(c.en)}</b><span>${esc(c.tr)} · ${c.ayahs} ayahs · page ${c.pages[0]}</span></span>
+      <span class="info"><b>${esc(c.en)}</b><span>${esc(c.tr)} · ${c.ayahs} ayahs</span></span>
       ${glyphs ? `<span class="sname" aria-label="${esc(c.ar)}">${surahNameGlyph(c.n)}</span>` : `<span class="arabic" lang="ar">${esc(c.ar)}</span>`}
     </button></li>`).join('') : '<li class="empty">No surah matches that search.</li>';
 }
@@ -2026,7 +2026,7 @@ function updateControls() {
     : player.gi >= 0 && player.key() ? `Ayah ${player.key()}` : c ? `${c.ayahs} ayahs` : '';
   if (rec.active && state.view === 'mushaf') mushaf.setChrome(true);
   syncDock();
-  if ($('#qaListenSub')) $('#qaListenSub').textContent = player.playing ? 'Playing · tap to pause' : player.active ? 'Paused · tap to resume' : 'From where you left off';
+  if ($('#qaListenSub')) $('#qaListenSub').textContent = player.playing ? 'Playing · tap to pause' : player.active ? 'Paused · tap to resume' : 'Where you left off';
   // Small player: which ayah is playing, then the reciter.
   if ($('#dock').classList.contains('mini') && player.gi >= 0 && Q.meta) {
     const [ps, pa] = Q.all[player.gi];
@@ -2202,43 +2202,80 @@ async function renderShelves() {
   const box = $('#library');
   box.innerHTML = '<p class="empty">Loading library…</p>';
   try { await H.load(); } catch (_) { box.innerHTML = '<p class="empty">The library could not load. Reload the page to try again.</p>'; return; }
+  await arCatalog();
+  const have = new Set(await bookFiles.keys());
+  const tab = store.get('libTab', 'books');
   const card = b => `<a class="hbook" href="#hadith-${b.slug}">
       <span class="hb-ar" lang="ar">${esc(b.ar)}</span>
       <b>${esc(b.en)}</b>
       <span>${b.count.toLocaleString()} hadith${b.chapters.length > 1 ? ` · ${b.chapters.length} books` : ''}</span>${b.english === false || (b.english === undefined && b.slug === 'darimi') ? '<span class="chip">Arabic only</span>' : ''}</a>`;
-  const shelf = (id, title, note, items, cls = 'hgrid') => `<section class="lib-section" id="shelf-${id}"><h2>${title}</h2>${note ? `<p class="lib-note">${note}</p>` : ''}<div class="${cls}">${items}</div></section>`;
-  const have = new Set(await bookFiles.keys());
+  const docIcon = '<svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/></svg>';
   const bookRow = b => {
     const one = b.files.length === 1;
-    const href = one && !b.ar ? '#read-' + b.id + '-0' : '#book-' + b.id;
+    const href = b.mine || (one && !b.ar) ? '#read-' + b.id + '-0' : '#book-' + b.id;
     const got = b.files.filter((_, i) => have.has(`${b.id}:${i}`)).length;
-    return `<li><a class="brow" href="${href}">
-      <span class="brow-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/></svg></span>
-      <span class="info"><b>${esc(b.title)}</b><span>${esc([b.author, b.note].filter(Boolean).join(' · '))}</span></span>
+    const arb = b.ar && AR_BOOKS.find(a => a.slug === b.ar);
+    const find = [b.title, b.author, arb && arb.title].filter(Boolean).join(' ');
+    return `<li data-find="${esc(findKey(find))}"><a class="brow" href="${href}">
+      <span class="brow-icon${b.ar ? ' ar' : ''}" aria-hidden="true"${b.ar ? ' lang="ar"' : ''}>${b.ar ? 'ع' : docIcon}</span>
+      <span class="info"><b>${esc(b.title)}</b>${arb ? `<span class="brow-ar" lang="ar" dir="rtl">${esc(arb.title)}</span>` : ''}<span>${esc([b.author, b.note].filter(Boolean).join(' · '))}</span></span>
       ${b.mine ? `<button type="button" class="icon-btn brow-rm" data-rm-book="${esc(b.id)}" aria-label="Remove ${esc(b.title)} from this phone"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`
-        : (b.ar ? '<span class="chip ar-chip" lang="ar">عربي</span>' : '') + `<span class="chip${got ? ' on' : ''}">${got ? (one ? 'On phone' : `${got}/${b.files.length} on phone`) : 'English'}</span>`}</a></li>`;
+        : (got ? `<span class="brow-tags"><span class="chip on">${one ? 'PDF' : `${got}/${b.files.length} PDFs`} ✓</span></span>` : '')}</a></li>`;
   };
-  const mine = myShelfItems();
-  await arCatalog();
-  const jump = [['mine', 'My books'], ['arabic', 'Arabic'], ['hadith-nine', 'Hadith'], ...SHELVES.map(sh => [sh.id, sh.title])];
-  box.innerHTML = `<nav class="chips" aria-label="Library sections">${jump.map(([id, t]) => `<button type="button" class="chip-btn" data-shelf="${id}">${esc(t)}</button>`).join('')}</nav>` +
-    shelf('mine', 'My books', 'Add any PDF from your phone. It stays on this phone, with your highlights and notes.',
-      `<button type="button" class="btn add-book" id="addBook"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add a book</button>` +
-      (mine.length ? `<ul class="blist">${mine.map(bookRow).join('')}</ul>` : ''), '') +
-    shelf('arabic', 'Arabic originals <span class="shelf-ar" lang="ar">الكتب بالعربية</span>', 'The classical books in the authors\u2019 own Arabic, inside the app and offline once opened.',
-      `<ul class="blist">${AR_BOOKS.map(a => `<li><a class="brow" href="#ar-${a.slug}"><span class="brow-icon ar" aria-hidden="true" lang="ar">ع</span>
-        <span class="info"><b lang="ar" dir="rtl" class="ar-title">${esc(a.title)}</b><span lang="ar" dir="rtl">${esc(a.author)}</span></span></a></li>`).join('')}</ul>`, '') +
-    shelf('hadith-nine', 'The nine books', 'Al-Kutub at-Tisʿah, as published on Sunnah.com.', H.index.filter(b => b.group === 'nine').map(card).join('')) +
-    shelf('hadith-selections', 'Selections', '', H.index.filter(b => b.group === 'selections').map(card).join('')) +
-    SHELVES.map(sh => shelf(sh.id, sh.title + (sh.arabic ? ` <span class="shelf-ar" lang="ar">${sh.arabic}</span>` : ''), `${sh.items.length > 1 ? `${sh.items.length} books` : 'A book'} in English translation. Tap a book to download its PDF, then add it and it opens here.`,
-      `<ul class="blist">${sh.items.map(bookRow).join('')}</ul>`, '')).join('') +
-    '';
-  $('#addBook').addEventListener('click', addMyBook);
-  box.querySelectorAll('[data-rm-book]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); removeMyBook(b.dataset.rmBook); }));
-  box.querySelector('.chips').addEventListener('click', e => {
-    const b = e.target.closest('[data-shelf]');
-    if (b) document.getElementById('shelf-' + b.dataset.shelf).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const tabs = [['books', 'Books'], ['hadith', 'Hadith'], ['mine', 'My books']];
+  let body = '';
+  if (tab === 'hadith') {
+    body = `<h2 class="lib-h">The nine books <span class="lib-h-note">as published on Sunnah.com</span></h2><div class="hgrid">${H.index.filter(b => b.group === 'nine').map(card).join('')}</div>
+      <h2 class="lib-h">Selections</h2><div class="hgrid">${H.index.filter(b => b.group === 'selections').map(card).join('')}</div>`;
+  } else if (tab === 'mine') {
+    const mine = myShelfItems();
+    body = `<p class="lib-note">Any PDF from your phone. It stays on this phone, with your highlights and notes.</p>
+      <button type="button" class="btn add-book" id="addBook"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add a book</button>
+      ${mine.length ? `<ul class="blist">${mine.map(bookRow).join('')}</ul>` : ''}`;
+  } else {
+    const filt = store.get('libFilter', 'all');
+    const groups = [['all', 'All'], ['arabic', 'In Arabic'], ...SHELVES.map(sh => [sh.id, sh.title])];
+    body = `<div class="search lib-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="libSearch" type="search" placeholder="Search books (English or Arabic)" autocomplete="off"></div>
+      <nav class="chips lib-filters" aria-label="Filter books">${groups.map(([id, t]) => `<button type="button" class="chip-btn${id === filt ? ' on' : ''}" data-filter="${id}">${esc(t)}</button>`).join('')}</nav>
+      <p class="lib-note lib-how">Books marked <span lang="ar" class="ar-chip-inline">ع</span> open in the original Arabic right here. For the English translation, download the PDF once and it opens here, offline.</p>
+      ${SHELVES.map(sh => `<section class="lib-group" data-group="${sh.id}"><h2 class="lib-h">${esc(sh.title)}${sh.arabic ? ` <span class="shelf-ar" lang="ar">${sh.arabic}</span>` : ''}</h2>
+        <ul class="blist">${sh.items.map(b => bookRow(b).replace('<li ', `<li data-ar="${b.ar ? 1 : 0}" `)).join('')}</ul></section>`).join('')}
+      <p class="empty" id="libNone" hidden>No book matches that.</p>`;
+  }
+  box.innerHTML = `<div class="mode-switch lib-tabs" role="tablist">${tabs.map(([id, t]) => `<button type="button" class="mode${id === tab ? ' active' : ''}" data-lib-tab="${id}" role="tab">${t}</button>`).join('')}</div>` + body;
+  box.querySelector('.lib-tabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-lib-tab]'); if (!b) return;
+    store.set('libTab', b.dataset.libTab); renderShelves();
   });
+  if (tab === 'mine') {
+    $('#addBook').addEventListener('click', addMyBook);
+    box.querySelectorAll('[data-rm-book]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); removeMyBook(b.dataset.rmBook); }));
+  }
+  if (tab === 'books') {
+    const apply = () => {
+      const q = findKey($('#libSearch').value), f = store.get('libFilter', 'all');
+      let any = false;
+      box.querySelectorAll('.lib-group').forEach(g => {
+        let has = false;
+        const groupOk = f === 'all' || f === 'arabic' || g.dataset.group === f;
+        g.querySelectorAll('li').forEach(li => {
+          const ok = groupOk && (f !== 'arabic' || li.dataset.ar === '1') && (!q || li.dataset.find.includes(q));
+          li.hidden = !ok; if (ok) has = true;
+        });
+        g.hidden = !has; if (has) any = true;
+      });
+      $('#libNone').hidden = any;
+    };
+    $('#libSearch').addEventListener('input', apply);
+    box.querySelector('.lib-filters').addEventListener('click', e => {
+      const b = e.target.closest('[data-filter]'); if (!b) return;
+      store.set('libFilter', b.dataset.filter);
+      box.querySelectorAll('.lib-filters .chip-btn').forEach(x => x.classList.toggle('on', x === b));
+      apply();
+    });
+    apply();
+  }
 }
 
 /* The app hosts no books (the translations belong to their publishers). A reader gets a
