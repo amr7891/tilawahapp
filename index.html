@@ -48,22 +48,34 @@
   <main id="main">
     <!-- Surah list -->
     <section class="view" id="view-list">
-      <div class="mode-switch" id="readMode" role="radiogroup" aria-label="Open surahs in">
-        <button type="button" class="mode" data-read="mushaf" role="radio">Mushaf</button>
-        <button type="button" class="mode" data-read="text" role="radio">Text and translation</button>
-      </div>
       <div id="installCard"></div>
-      <button type="button" class="find-btn" id="findBtn">
-        <span class="find-mic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
-        <span><b>Recite to find an ayah</b><small>Start reciting anywhere and the mushaf follows you</small></span>
-      </button>
       <div id="continueCard"></div>
+      <nav class="quick" aria-label="Shortcuts">
+        <button type="button" class="qa" id="findBtn"><span class="qa-ic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span><b>Recite</b><small>Find your place</small></button>
+        <button type="button" class="qa" id="qaGoto"><span class="qa-ic"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span><b>Go to</b><small>Surah, juz, page</small></button>
+        <button type="button" class="qa" id="qaListen"><span class="qa-ic"><svg viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"/></svg></span><b>Listen</b><small id="qaListenSub">From where you left off</small></button>
+        <a class="qa" href="#saved"><span class="qa-ic"><svg viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4z"/></svg></span><b>Saved</b><small id="qaSavedSub">Bookmarks & notes</small></a>
+      </nav>
       <section class="saved-home" id="savedHome" hidden></section>
-      <div class="search">
-        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-        <input id="surahSearch" type="search" placeholder="Search surah by name or number" autocomplete="off">
-      </div>
-      <ol class="surah-list" id="surahList"><li class="empty">Loading surahs…</li></ol>
+      <section class="quran-sec">
+        <div class="sec-head">
+          <h2>The Quran</h2>
+          <div class="mode-switch small" id="readMode" role="radiogroup" aria-label="Open surahs in">
+            <button type="button" class="mode" data-read="mushaf" role="radio">Mushaf</button>
+            <button type="button" class="mode" data-read="text" role="radio">Text</button>
+          </div>
+        </div>
+        <div class="mode-switch" id="browseTabs" role="tablist">
+          <button type="button" class="mode active" data-browse="surah" role="tab">Surahs</button>
+          <button type="button" class="mode" data-browse="juz" role="tab">Juz</button>
+        </div>
+        <div class="search" id="surahSearchBox">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="surahSearch" type="search" placeholder="Search surah by name or number" autocomplete="off">
+        </div>
+        <ol class="surah-list" id="surahList"><li class="empty">Loading surahs…</li></ol>
+        <ol class="juz-grid home-juz" id="juzList" hidden></ol>
+      </section>
     </section>
 
     <!-- Surah text view -->

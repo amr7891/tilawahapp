@@ -647,6 +647,9 @@ function renderContinue() {
   const p = store.get('mushafPage', null);
   const last = store.get('lastRead', null);
   let html = '';
+  if (!p && !last) html = `<a class="continue" href="#page-1"><span><small>Start reading</small><b>Al-Fatihah · Page 1</b></span><span class="cont-meta">Juz 1</span></a>`;
+  const n = Q.meta ? savedItems().length : 0;
+  const sc = $('#qaSavedSub'); if (sc) sc.textContent = n ? `${n} saved` : 'Bookmarks & notes';
   if (p) {
     const c = Q.surahsOnPage(p)[0];
     html += `<a class="continue" href="#page-${p}"><span><small>Continue in the mushaf</small><b>Page ${p} · ${esc(c ? c.en : '')}</b></span><span class="cont-meta">Juz ${Q.juzOfPage(p)}</span></a>`;
@@ -883,6 +886,11 @@ function toggleBookmark() {
   mushaf.updateBars();
 }
 
+// Go to a mushaf page (from the reader or from any other screen), optionally selecting an ayah.
+function gotoPage(p, sel) {
+  if (state.view === 'mushaf') { mushaf.show(p).then(() => { if (sel) mushaf.select(sel); }); return; }
+  pendingSelect = sel || null; location.hash = `page-${p}`;
+}
 function openGoto(tab = 'surah') {
   const tabs = `<div class="mode-switch" role="tablist">${[['surah', 'Surah'], ['juz', 'Juz'], ['bookmarks', 'Bookmarks']].map(([t, l]) =>
     `<button type="button" class="mode${t === tab ? ' active' : ''}" data-goto-tab="${t}">${l}</button>`).join('')}</div>
@@ -1924,8 +1932,9 @@ function renderSavedHome() {
   const items = Q.meta ? savedItems() : [];
   if (!items.length) { box.hidden = true; return; }
   box.hidden = false;
-  box.innerHTML = `<div class="sh-head"><h2>Your bookmarks and notes</h2><a href="#saved">See all</a></div>
-    <ul class="saved-list">${items.slice(0, 5).map(it => savedRow(it)).join('')}</ul>`;
+  // A row of cards, newest first, that scrolls sideways.
+  box.innerHTML = `<div class="sh-head"><h2>Bookmarks and notes</h2><a href="#saved">See all (${items.length})</a></div>
+    <ul class="saved-cards">${items.slice(0, 10).map(it => savedRow(it)).join('')}</ul>`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1950,6 +1959,7 @@ function updateControls() {
     : player.gi >= 0 && player.key() ? `Ayah ${player.key()}` : c ? `${c.ayahs} ayahs` : '';
   if (rec.active && state.view === 'mushaf') mushaf.setChrome(true);
   syncDock();
+  if ($('#qaListenSub')) $('#qaListenSub').textContent = player.playing ? 'Playing · tap to pause' : player.active ? 'Paused · tap to resume' : 'From where you left off';
   // Small player: which ayah is playing, then the reciter.
   if ($('#dock').classList.contains('mini') && player.gi >= 0 && Q.meta) {
     const [ps, pa] = Q.all[player.gi];
@@ -2802,7 +2812,7 @@ document.addEventListener('click', e => {
     return;
   }
   const mode = e.target.closest('#readMode [data-read]');
-  if (mode) { settings.readMode = mode.dataset.read; saveSettings(); return; }
+  if (mode) { settings.readMode = mode.dataset.read; saveSettings(); if (!$('#juzList').hidden) renderJuzList(); return; }
   const act = e.target.closest('#ayahs [data-act]');
   if (act) {
     const a = +act.closest('.ayah').dataset.a;
@@ -2813,6 +2823,31 @@ document.addEventListener('click', e => {
 document.querySelectorAll('dialog').forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
 
 $('#surahSearch').addEventListener('input', renderSurahList);
+$('#qaGoto').addEventListener('click', () => { if (Q.meta) openGoto('surah'); });
+// Listen: from the page you were reading (the small player shows here).
+$('#qaListen').addEventListener('click', () => {
+  if (!Q.meta) return;
+  if (player.active) { player.resumeOr(() => {}); return; }
+  const [s, a] = Q.firstAyahOn(store.get('mushafPage', 1));
+  player.play(s, a);
+});
+// The Quran section: surahs or juz.
+function renderJuzList() {
+  if (!Q.meta) return;
+  const cur = Q.juzOfPage(store.get('mushafPage', 1));
+  $('#juzList').innerHTML = Q.meta.juz.map((p, i) => {
+    const [s, a] = JUZ_STARTS[i];
+    const href = settings.readMode === 'mushaf' ? `#page-${p}` : `#surah-${s}-${a}`;
+    return `<li><a class="juz${cur === i + 1 ? ' current' : ''}" href="${href}"><span class="star">${i + 1}</span><span><b>Juz ${i + 1}</b><span>${esc(Q.ch(s).en)} ${s}:${a} · p. ${p}</span></span></a></li>`;
+  }).join('');
+}
+$('#browseTabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-browse]'); if (!b) return;
+  const juz = b.dataset.browse === 'juz';
+  $$('#browseTabs .mode').forEach(x => x.classList.toggle('active', x === b));
+  $('#juzList').hidden = !juz; $('#surahList').hidden = juz; $('#surahSearchBox').hidden = juz;
+  if (juz) renderJuzList();
+});
 $('#findBtn').addEventListener('click', () => {
   openMushaf(store.get('mushafPage', 1));
   setTimeout(() => rec.startAuto(), 300);
@@ -2981,18 +3016,18 @@ $('#micBtn').addEventListener('click', () => {
     if (tab) { openGoto(tab.dataset.gotoTab); return; }
     if (e.target.id === 'pageJumpGo') {
       const p = +$('#pageJump').value;
-      if (p >= 1 && p <= 604) { $('#gotoSheet').close(); mushaf.show(p); } else toast('Enter a page from 1 to 604.', 'bad');
+      if (p >= 1 && p <= 604) { $('#gotoSheet').close(); gotoPage(p); } else toast('Enter a page from 1 to 604.', 'bad');
       return;
     }
     const ga = e.target.closest('[data-goto-ayah]');
     if (ga) {
       const [s, a] = ga.dataset.gotoAyah.split(':').map(Number);
       $('#gotoSheet').close();
-      mushaf.show(Q.ayahPage(s, a)).then(() => mushaf.select(`${s}:${a}`));
+      gotoPage(Q.ayahPage(s, a), `${s}:${a}`);
       return;
     }
     const go = e.target.closest('[data-goto]');
-    if (go) { $('#gotoSheet').close(); mushaf.show(+go.dataset.goto); }
+    if (go) { $('#gotoSheet').close(); gotoPage(+go.dataset.goto); }
   });
   let resizeTimer;
   window.addEventListener('resize', () => {
