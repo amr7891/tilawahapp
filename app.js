@@ -468,13 +468,49 @@ function getTimings(timed, s) {
    tajweed fonts, translation, tafsir, hadith, Arabic books, speech model) and the whole Quran
    in the chosen reciter's voice, so all of it works offline. Already-saved files are skipped. */
 const offline = {
-  running: false, stopReq: false, stat: { app: [0, 0], fonts: [0, 0], audio: [0, 0], reciter: '' },
-  on() { return settings.offlineAll !== false; },
+  running: false, stopReq: false, stat: { app: [0, 0], fonts: [0, 0], extras: [0, 0], audio: [0, 0], reciter: '' },
+  on() { return settings.offlineAll === true; },
+  // Surahs of the current reciter fully on this phone.
+  doneSet() { return new Set(store.get('dl:' + settings.reciter, [])); },
+  markDone(s) { const d = this.doneSet(); d.add(s); store.set('dl:' + settings.reciter, [...d]); },
+  busy: new Map(),
+  surahBtn(n, got) {
+    const st = this.busy.get(n), done = got.has(n);
+    return `<button type="button" class="icon-btn sdl${done ? ' done' : ''}${st != null ? ' busy' : ''}" data-dl="${n}" aria-label="${done ? 'Recitation saved for offline' : 'Download recitation for offline'}">${st != null ? `<span class="sdl-pc">${st}%</span>` : done ? '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>'}</button>`;
+  },
+  paintSurah(n) { const b = document.querySelector(`[data-dl="${n}"]`); if (b) b.outerHTML = this.surahBtn(n, this.doneSet()); },
+  async surahUrls(r, s) {
+    const tm = timedFor(r, s);
+    if (tm) { const t = await getTimings(tm, s); return [t.url || `${tm.base}${pad3(s)}.mp3`]; }
+    return Array.from({ length: Q.ch(s).ayahs }, (_, i) => `${AUDIO_BASE}/${r.id}/${pad3(s)}${pad3(i + 1)}.mp3`);
+  },
+  // Download one surah in the chosen reciter's voice.
+  async downloadSurah(s) {
+    if (this.busy.has(s)) return;
+    const r = currentReciter();
+    if (r.missing && r.missing.includes(s)) { toast(`${r.name} has no recording of ${Q.ch(s).en}.`, 'bad'); return; }
+    if (!navigator.onLine) { toast('Connect to the internet to download.', 'bad'); return; }
+    this.busy.set(s, 0); this.paintSurah(s);
+    let ok = 0, urls = [];
+    try { urls = await this.surahUrls(r, s); } catch (_) {}
+    let i = 0;
+    const work = async () => { while (i < urls.length) { const u = urls[i++]; try { if (!(await this.has(u))) await this.get(u); ok++; } catch (_) {} this.busy.set(s, Math.round(ok / urls.length * 100)); this.paintSurah(s); } };
+    await Promise.all(Array.from({ length: urls.length > 1 ? 4 : 1 }, work));
+    this.busy.delete(s);
+    if (urls.length && ok === urls.length) { this.markDone(s); toast(`${Q.ch(s).en} saved for offline (${r.name}).`); }
+    else toast(`${Q.ch(s).en} didn\u2019t fully download. Try again.`, 'bad');
+    this.paintSurah(s);
+  },
+  async downloadAll() {
+    const r = currentReciter(), todo = [];
+    for (let s = 1; s <= 114; s++) if (!(r.missing && r.missing.includes(s)) && !this.doneSet().has(s)) todo.push(s);
+    for (const s of todo) { if (!navigator.onLine) break; await this.downloadSurah(s); }
+  },
   allowed() {
     const c = navigator.connection;
     if (!navigator.onLine) return false;
     if (c && c.saveData) return false;                                     // the phone's data saver
-    if (c && c.type === 'cellular' && !settings.offlineCellular) return false;
+    if (this.on() && c && c.type === 'cellular' && !settings.offlineCellular && this.stat.app[0] >= this.stat.app[1]) return false;
     return true;
   },
   async has(url) { try { return !!(await caches.match(url, { ignoreSearch: !/^https?:/.test(url) })); } catch (_) { return false; } },
@@ -529,16 +565,22 @@ const offline = {
     return urls;
   },
   async run() {
-    if (this.running || !this.on() || !this.allowed()) return;
+    if (this.running || !navigator.onLine || (navigator.connection && navigator.connection.saveData)) return;
     this.running = true; this.stopReq = false; this.full = false; this.misses = 0; this.render();
     try {
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
       await Q.load();
-      const list = await (await fetch('offline-files.json')).json();
-      await this.pool(list.map(x => x[0]), 'app', 4);
+      const list = (await (await fetch('offline-files.json')).json()).map(x => x[0]);
+      // Always: what reading needs (Quran pages and text, translation, tafsir, timings).
+      const core = list.filter(u => /^(mushaf|data|fonts)\//.test(u));
+      await this.pool(core, 'app', 4);
       if (settings.tajweed && !this.stopReq) await this.pool(Array.from({ length: 604 }, (_, i) => TAJWEED_FONT(i + 1)), 'fonts', 4);
-      const r = currentReciter(); this.stat.reciter = r.name + (r.style ? ' · ' + r.style : '');
-      if (!this.stopReq) await this.pool(await this.audioUrls(r), 'audio', r.timed ? 2 : 4);
+      // Only with "Keep everything": hadith, Arabic books, speech model, and all recitations.
+      if (this.on() && !this.stopReq) {
+        await this.pool(list.filter(u => !core.includes(u)), 'extras', 4);
+        const r = currentReciter(); this.stat.reciter = r.name + (r.style ? ' · ' + r.style : '');
+        if (!this.stopReq) await this.downloadAll();
+      }
     } catch (_) {}
     this.running = false; this.render();
   },
@@ -546,10 +588,11 @@ const offline = {
   render() {
     const el = $('#offlineStatus'); if (!el) return;
     const pc = ([a, b]) => b ? Math.round(a / b * 100) : 0, st = this.stat;
-    if (!this.on()) { el.textContent = 'Off. Things you open are still kept for offline.'; return; }
-    const parts = [`App and Quran data ${pc(st.app)}%`];
+    const parts = [`Quran for reading ${pc(st.app)}%`];
     if (settings.tajweed) parts.push(`tajweed colours ${pc(st.fonts)}%`);
-    parts.push(`${st.reciter || currentReciter().name}: ${st.audio[1] ? pc(st.audio) + '%' : 'waiting'}`);
+    const done = this.doneSet().size;
+    parts.push(`${currentReciter().name}: ${done} of 114 surahs saved`);
+    if (this.on()) parts.push(`hadith, books and speech model ${pc(st.extras)}%`);
     el.textContent = (this.full ? 'Stopped: this phone is out of space. ' : this.running ? 'Downloading… ' : navigator.onLine ? '' : 'Paused (offline). ') + parts.join(' · ');
   },
 };
@@ -761,12 +804,13 @@ function renderSurahList() {
     || String(c.n) === raw
     || (q && (c.en.toLowerCase().replace(/[^a-z0-9]/g, '').includes(q) || c.tr.toLowerCase().replace(/[^a-z0-9]/g, '').includes(q)))
     || (qa && Matcher.normalize(c.ar).includes(qa)));
+  const got = offline.doneSet();
   $('#surahList').innerHTML = rows.length ? rows.map(c => `
-    <li><button class="surah-row" data-n="${c.n}">
+    <li class="surah-li"><button class="surah-row" data-n="${c.n}">
       <span class="star">${c.n}</span>
       <span class="info"><b>${esc(c.en)}</b><span>${esc(c.tr)} · ${c.ayahs} ayahs</span></span>
       ${glyphs ? `<span class="sname" aria-label="${esc(c.ar)}">${surahNameGlyph(c.n)}</span>` : `<span class="arabic" lang="ar">${esc(c.ar)}</span>`}
-    </button></li>`).join('') : '<li class="empty">No surah matches that search.</li>';
+    </button>${offline.surahBtn(c.n, got)}</li>`).join('') : '<li class="empty">No surah matches that search.</li>';
 }
 
 function renderContinue() {
@@ -1994,7 +2038,7 @@ function filterReciters() {
 $('#reciterSearch').addEventListener('input', filterReciters);
 $('#reciterSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const first = $('#reciterList li:not([hidden]) input'); if (first) { first.checked = true; setReciter(first.value); $('#reciterSheet').close(); } } });
 function setReciter(id) {
-  setTimeout(() => offline.restart(), 1000);
+  setTimeout(() => { offline.restart(); renderSurahList(); }, 300);
   if (!RECITERS.some(r => r.id === id)) return;
   settings.reciter = id; saveSettings();
   $('#setReciter').value = id;
@@ -3330,12 +3374,14 @@ function initSettingsSheet() {
   $('#setPopups').addEventListener('change', e => { settings.mistakePopups = e.target.checked; saveSettings(); });
   $('#setOffline').addEventListener('change', e => { settings.offlineAll = e.target.checked; saveSettings(); if (e.target.checked) offline.restart(); else offline.stopReq = true; offline.render(); });
   $('#setOfflineCell').addEventListener('change', e => { settings.offlineCellular = e.target.checked; saveSettings(); offline.restart(); });
+  $('#offlineAllAudio').addEventListener('click', e => { e.preventDefault(); toast(`Downloading every surah for ${reciterName()}…`); offline.downloadAll().then(() => offline.render()); });
   $('#offlineClear').addEventListener('click', async e => {
     e.preventDefault();
     offline.stopReq = true;
     try { const k = (await caches.keys()).filter(n => n.includes('audio')); await Promise.all(k.map(n => caches.delete(n))); } catch (_) {}
-    settings.offlineAll = false; saveSettings(); $('#setOffline').checked = false; offline.stat.audio = [0, 0]; offline.render();
-    toast('Downloaded recitations deleted. Turn "Keep everything" back on to download again.');
+    Object.keys(localStorage).filter(k => k.startsWith('tl:dl:')).forEach(k => localStorage.removeItem(k));
+    settings.offlineAll = false; saveSettings(); $('#setOffline').checked = false; offline.render(); renderSurahList();
+    toast('Downloaded recitations deleted.');
   });
   $('#installBtn').addEventListener('click', () => { $('#settingsSheet').close(); install.start(); });
   $('#setStrict').addEventListener('change', e => { settings.strict = e.target.value; saveSettings(); if (rec.active && rec.phon) rec.update(false); });
@@ -3348,6 +3394,8 @@ function initSettingsSheet() {
 
 // Surah list, read mode and text-view actions.
 document.addEventListener('click', e => {
+  const dl = e.target.closest('#surahList [data-dl]');
+  if (dl) { e.preventDefault(); const n = +dl.dataset.dl; if (!offline.doneSet().has(n)) offline.downloadSurah(n); else toast(`${Q.ch(n).en} is saved for offline (${reciterName()}).`); return; }
   const row = e.target.closest('#surahList .surah-row');
   if (row) {
     const n = +row.dataset.n;

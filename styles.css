@@ -823,3 +823,9 @@ input, textarea, select { font-size: 16px; }
 .rec-list .icon-btn svg { width: 18px; height: 18px; }
 .rec-list .rec-empty { color: var(--muted); font-size: 13px; border-style: dashed; }
 .offline-status { margin: 4px 2px 10px; color: var(--accent); font-weight: 600; }
+.surah-li { display: flex; align-items: center; }
+.surah-li .surah-row { flex: 1; min-width: 0; }
+.sdl { flex: none; width: 36px; height: 36px; color: var(--muted); }
+.sdl svg { width: 18px; height: 18px; }
+.sdl.done { color: var(--accent); }
+.sdl-pc { font-size: 11px; font-weight: 700; color: var(--accent); }
