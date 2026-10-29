@@ -31,11 +31,11 @@ function tajweedPalette(fam) {
 const AUDIO_BASE = 'https://everyayah.com/data';
 const MP3Q = 'https://cdn.mp3quran.net/audio/';
 const RECITERS = [
-  { id: 'Abdul_Basit_Murattal_192kbps', name: 'Abdul Basit Abdus-Samad', arabic: 'عبد الباسط عبد الصمد' , timed: { qdc: 2 }, words: true },
-  { id: 'Abdul_Basit_Mujawwad_128kbps', name: 'Abdul Basit Abdus-Samad', arabic: 'عبد الباسط عبد الصمد', style: 'Mujawwad' , timed: { qdc: 1 }, words: true },
+  { id: 'Abdul_Basit_Murattal_192kbps', name: 'Abdul Basit Abdus-Samad', arabic: 'عبد الباسط عبد الصمد' },  // Quran.com's timings drift for this recording: EveryAyah's per-ayah files
+  { id: 'Abdul_Basit_Mujawwad_128kbps', name: 'Abdul Basit Abdus-Samad', arabic: 'عبد الباسط عبد الصمد', style: 'Mujawwad' , timed: { qdc: 1 }, words: true, qdcSkip: [30] },
   { id: 'Abdullaah_3awwaad_Al-Juhaynee_128kbps', name: 'Abdullah Awad Al-Juhany', arabic: 'عبد الله عواد الجهني', timed: { local: 'abdullah-juhani', read: 62, base: MP3Q + 'abdullah-juhani/r1/' } },
-  { id: 'Abdurrahmaan_As-Sudais_192kbps', name: 'Abdur-Rahman as-Sudais', arabic: 'عبد الرحمن السديس' , timed: { qdc: 3 }, words: true },
-  { id: 'Abu_Bakr_Ash-Shaatree_128kbps', name: 'Abu Bakr al-Shatri', arabic: 'أبو بكر الشاطري' , timed: { qdc: 4 }, words: true },
+  { id: 'Abdurrahmaan_As-Sudais_192kbps', name: 'Abdur-Rahman as-Sudais', arabic: 'عبد الرحمن السديس' , timed: { qdc: 3 }, words: true, qdcSkip: [2, 27, 28, 48, 49] },
+  { id: 'Abu_Bakr_Ash-Shaatree_128kbps', name: 'Abu Bakr al-Shatri', arabic: 'أبو بكر الشاطري' , timed: { qdc: 4 }, words: true, qdcSkip: [14, 52, 63, 75, 112, 113, 114] },
   { id: 'Hudhaify_128kbps', name: 'Ali Al-Huthaify', arabic: 'علي بن عبد الرحمن الحذيفي' },
   { id: 'tl-bandar-baleela', name: 'Bandar Baleela', arabic: 'بندر بليلة', timed: { local: 'bandar-baleela', read: 217, base: MP3Q + 'bandar-baleela/r1/' } },
   { id: 'Fares_Abbad_64kbps', name: 'Fares Abbad', arabic: 'فارس عباد' },
@@ -49,7 +49,7 @@ const RECITERS = [
   { id: 'Muhammad_Ayyoub_128kbps', name: 'Muhammad Ayyub', arabic: 'محمد أيوب' },
   { id: 'mp3quran-340', name: 'Muhammad Barhaji', arabic: 'محمد برهجي', timed: { local: 'muhammad-burhaji', read: 340, base: MP3Q + 'muhammad-burhaji/r1/' } },
   { id: 'Minshawy_Murattal_128kbps', name: 'Muhammad Siddiq Al-Minshawi', arabic: 'محمد صديق المنشاوي' , timed: { qdc: 9 }, words: true },
-  { id: 'Minshawy_Mujawwad_192kbps', name: 'Muhammad Siddiq Al-Minshawi', arabic: 'محمد صديق المنشاوي', style: 'Mujawwad' , timed: { qdc: 8 }, words: true },
+  { id: 'Minshawy_Mujawwad_192kbps', name: 'Muhammad Siddiq Al-Minshawi', arabic: 'محمد صديق المنشاوي', style: 'Mujawwad' },  // Quran.com's timings are broken for some surahs: EveryAyah's per-ayah files
   { id: 'mp3quran-221', name: 'Raad Muhammad al-Kurdi', arabic: 'رعد محمد الكردي', timed: { local: 'raad-kurdi', read: 221, base: MP3Q + 'raad-kurdi/r1/' } },
   { id: 'mp3quran-30', name: 'Saad al-Ghamdi', arabic: 'سعد الغامدي', timed: { local: 'saad-ghamdi', read: 30, base: MP3Q + 'saad-ghamdi/r1/' } },
   { id: 'Saood_ash-Shuraym_128kbps', name: 'Saud al-Shuraim', arabic: 'سعود الشريم' , timed: { qdc: 10 }, words: true },
@@ -435,6 +435,9 @@ function reciterName() { const r = currentReciter(); return r.name + (r.style ==
 
 // Ayah timings for full-surah recordings, per reciter and surah.
 const timings = new Map();
+// Full-surah timing for this reciter and surah, or null to play EveryAyah's per-ayah files
+// (for surahs where Quran.com's timings don't match its recording).
+function timedFor(r, s) { return r && r.timed && !(r.qdcSkip && r.qdcSkip.includes(s)) ? r.timed : null; }
 function getTimings(timed, s) {
   const k = (timed.qdc ? 'qdc' + timed.qdc : timed.local || timed.read) + ':' + s;
   if (!timings.has(k)) {
@@ -1137,13 +1140,14 @@ const player = {
     paintWords();
     this.mediaSession();
     updateControls();
-    const fail = () => { if (t === this.token) { toast('Could not play this recitation. Check your connection.', 'bad'); this.stop(); } };
+    const fail = () => { if (t === this.token) { toast(navigator.onLine ? 'Could not play this recitation. Check your connection.' : 'This recitation isn\u2019t saved on your phone yet. Play it once with internet, and it plays offline after that.', 'bad'); this.stop(); } };
     if (r.missing && r.missing.includes(s)) { toast(`${r.name} has no recording of ${Q.ch(s).en}. Choose another reciter for this surah.`, 'bad'); this.stop(); return; }
     this.applySpeed();
-    if (r.timed) {
+    const tm = timedFor(r, s);
+    if (tm) {
       // Full-surah file: seek to the ayah and stop at its end time.
       let times;
-      try { times = await getTimings(r.timed, s); } catch (_) { fail(); return; }
+      try { times = await getTimings(tm, s); } catch (_) { fail(); return; }
       if (t !== this.token) return;
       this.span = times[a];
       if (!this.span) { fail(); return; }
@@ -1152,16 +1156,16 @@ const player = {
       this.ayahSpan = this.span; this.inBism = false;
       if (a === 1 && s !== 1 && s !== 9 && this.bismFor !== this.gi) {
         this.bismFor = this.gi;
-        if (r.timed.qdc) {
+        if (tm.qdc) {
           // Quran.com's surah recordings start at ayah 1: play the reciter's basmala (Al-Fatiha 1:1) first.
-          try { const t1 = await getTimings(r.timed, 1); if (t !== this.token) return; times = t1; this.span = t1[1]; this.inBism = true; } catch (_) { /* go on without it */ }
+          try { const t1 = await getTimings(tm, 1); if (t !== this.token) return; times = t1; this.span = t1[1]; this.inBism = true; } catch (_) { /* go on without it */ }
         } else this.span = [0, this.span[1]];
       }
       // A few recordings have one channel in opposite phase, which cancels the voice on a
       // phone speaker: play those surahs from one channel.
-      this.use(await monoFix.needed(r.timed, s));
+      this.use(await monoFix.needed(tm, s));
       if (t !== this.token) return;
-      const file = times.url || `${r.timed.base}${pad3(s)}.mp3`;
+      const file = times.url || `${tm.base}${pad3(s)}.mp3`;
       this.words = times.words || null;
       const sameFile = this.audio.src.split('#')[0] === file;
       // The #t= fragment makes iPhones start at the ayah even when an early seek is ignored.
@@ -1222,7 +1226,7 @@ const player = {
   },
 
   ended() {
-    if (this.inBism) { this.inBism = false; if (currentReciter().timed) { this.start(); return; } this.audio.src = this.url(this.gi); this.audio.play().catch(() => {}); return; }
+    if (this.inBism) { this.inBism = false; if (timedFor(currentReciter(), Q.all[this.gi][0])) { this.start(); return; } this.audio.src = this.url(this.gi); this.audio.play().catch(() => {}); return; }
     if (this.ayahSpan && this.span && this.span !== this.ayahSpan) this.span = this.ayahSpan;
     if (--this.left > 0) { this.audio.currentTime = this.span ? this.span[0] : 0; this.audio.play().catch(() => {}); return; }
     if (this.once) { this.stop(); return; }

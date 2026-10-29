@@ -5,7 +5,7 @@
 // - Books: each PDF is downloaded once, then read from the phone.
 // - Recitation audio streams from EveryAyah / MP3Quran (not from this site) and the
 //   ayahs you play are kept so they replay offline.
-const SHELL = 'tilawah-shell-v62';
+const SHELL = 'tilawah-shell-v63';
 const DATA = 'tilawah-data-v4';
 const BOOKS = 'tilawah-books-v1';
 const AUDIO = 'tilawah-audio-v1';
@@ -27,9 +27,15 @@ self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
     .then(keys => Promise.all(keys.filter(k => !KEEP.includes(k)).map(k => caches.delete(k))))
     // Earlier versions saved MP3Quran ayah timings under one entry for every surah and
-    // reciter (the query was ignored); drop them so each surah's timings are fetched again.
-    // Our own ayah timings (small files) are refreshed with every update too.
-    .then(() => caches.open(DATA)).then(c => c.keys().then(reqs => Promise.all(reqs.filter(r => r.url.includes('ayat_timing') || r.url.includes('/data/timings/')).map(r => c.delete(r)))))
+    // reciter (the query was ignored): drop those once. Since then each surah's timings are
+    // saved on their own and kept, for listening offline.
+    .then(() => caches.open(DATA))
+    .then(c => c.match('__timings_fixed').then(done => {
+      if (done) return;
+      return c.keys()
+        .then(reqs => Promise.all(reqs.filter(r => r.url.includes('ayat_timing')).map(r => c.delete(r))))
+        .then(() => c.put('__timings_fixed', new Response('1')));
+    }))
     .then(() => self.clients.claim()));
 });
 
@@ -40,26 +46,54 @@ function cacheFirst(req, name = DATA, exact = false) {
   })));
 }
 
-// Audio: keep whole files; answer range requests from the saved copy.
+function networkFirst(req, name = DATA) {
+  return caches.open(name).then(c => fetch(req).then(res => { if (res.status === 200) c.put(req, res.clone()); return res; })
+    .catch(() => c.match(req, { ignoreSearch: true }).then(hit => hit || Response.error())));
+}
+
+// Audio: keep whole files; answer range requests (seeking) from the saved copy.
+const fileUrl = req => req.url.split('#')[0];
 async function audio(req) {
   const c = await caches.open(AUDIO);
-  const hit = await c.match(req.url);
-  if (!hit) {
-    const res = await fetch(req.url, { mode: 'cors' }).catch(() => null);
-    if (res && res.status === 200) { c.put(req.url, res.clone()).catch(() => {}); return withRange(req, res); }
-    return fetch(req);
+  const key = fileUrl(req);
+  const hit = await c.match(key);
+  if (hit) return withRange(req, hit);
+  let res = await fetch(key, { mode: 'cors' }).catch(() => null);
+  if (res && res.status === 200) { c.put(key, res.clone()).catch(() => {}); return withRange(req, res); }
+  // A host that doesn't allow reading the file still lets it be kept and played back.
+  res = await fetch(key, { mode: 'no-cors' }).catch(() => null);
+  if (res && (res.type === 'opaque' || res.ok)) { c.put(key, res.clone()).catch(() => {}); return res; }
+  return fetch(req);
+}
+// A full-surah recording: play it straight from the network, and keep the whole file in the
+// background (once per file), so it plays offline from then on.
+const saving = new Set();
+async function surahAudio(e, req) {
+  const c = await caches.open(AUDIO);
+  const key = fileUrl(req);
+  const hit = await c.match(key);
+  if (hit) return withRange(req, hit);
+  if (!saving.has(key)) {
+    saving.add(key);
+    e.waitUntil((async () => {
+      try {
+        let res = await fetch(key, { mode: 'cors' }).catch(() => null);
+        if (!(res && res.status === 200)) res = await fetch(key, { mode: 'no-cors' }).catch(() => null);
+        if (res && (res.status === 200 || res.type === 'opaque')) await c.put(key, res);
+      } catch (_) {} finally { saving.delete(key); }
+    })());
   }
-  return withRange(req, hit);
+  return fetch(req);
 }
 async function withRange(req, res) {
   const range = req.headers.get('range');
-  if (!range) return res;
-  const buf = await res.arrayBuffer();
+  if (!range || res.type === 'opaque') return res;
+  const blob = await res.blob();
   const m = /bytes=(\d+)-(\d*)/.exec(range);
-  const start = m ? +m[1] : 0, end = m && m[2] ? Math.min(+m[2], buf.byteLength - 1) : buf.byteLength - 1;
-  return new Response(buf.slice(start, end + 1), { status: 206, headers: {
+  const start = m ? +m[1] : 0, end = m && m[2] ? Math.min(+m[2], blob.size - 1) : blob.size - 1;
+  return new Response(blob.slice(start, end + 1), { status: 206, headers: {
     'Content-Type': res.headers.get('content-type') || 'audio/mpeg',
-    'Content-Range': `bytes ${start}-${end}/${buf.byteLength}`, 'Content-Length': String(end - start + 1), 'Accept-Ranges': 'bytes' } });
+    'Content-Range': `bytes ${start}-${end}/${blob.size}`, 'Content-Length': String(end - start + 1), 'Accept-Ranges': 'bytes' } });
 }
 
 // A PDF shared to the app (Android: Share → Tilawah) is kept on the phone and the app
@@ -87,8 +121,10 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // Per-ayah recitations from EveryAyah (small files) are kept once played.
+  // Recitations are kept on the phone once played, so they play offline afterwards:
+  // EveryAyah's per-ayah files, and the full-surah recordings (MP3Quran, Quran.com).
   if (url.hostname === 'everyayah.com') { e.respondWith(audio(req)); return; }
+  if ((/(^|\.)mp3quran\.net$/.test(url.hostname) || url.hostname === 'download.quranicaudio.com') && /\.mp3$/i.test(url.pathname)) { e.respondWith(surahAudio(e, req)); return; }
   // Ayah timings for full-surah reciters.
   if (/mp3quran\.net$/.test(url.hostname) && url.pathname.includes('ayat_timing')) { e.respondWith(cacheFirst(req, DATA, true)); return; }
 
@@ -98,6 +134,8 @@ self.addEventListener('fetch', e => {
   if (url.hostname === 'verses.quran.foundation') { e.respondWith(cacheFirst(req)); return; }
   if (url.origin !== self.location.origin) return;
 
+  // Our own ayah timings: fresh when online (they're improved between versions), saved for offline.
+  if (url.pathname.includes('/data/timings/')) { e.respondWith(networkFirst(req)); return; }
   if (/\/(mushaf|hadith|data|fonts|vendor|models|arbooks)\//.test(url.pathname)) {
     // Index files change between versions and are saved with the app files.
     if (/(index|meta|search|quran-ph)\.json$/.test(url.pathname) || url.pathname.endsWith('fonts.css')) { e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req))); return; }
