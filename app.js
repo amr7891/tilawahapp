@@ -464,6 +464,98 @@ function getTimings(timed, s) {
   return timings.get(k);
 }
 
+/* Keep everything on this phone: when online, quietly download all the app's data (Quran,
+   tajweed fonts, translation, tafsir, hadith, Arabic books, speech model) and the whole Quran
+   in the chosen reciter's voice, so all of it works offline. Already-saved files are skipped. */
+const offline = {
+  running: false, stopReq: false, stat: { app: [0, 0], fonts: [0, 0], audio: [0, 0], reciter: '' },
+  on() { return settings.offlineAll !== false; },
+  allowed() {
+    const c = navigator.connection;
+    if (!navigator.onLine) return false;
+    if (c && c.saveData) return false;                                     // the phone's data saver
+    if (c && c.type === 'cellular' && !settings.offlineCellular) return false;
+    return true;
+  },
+  async has(url) { try { return !!(await caches.match(url, { ignoreSearch: !/^https?:/.test(url) })); } catch (_) { return false; } },
+  async get(url, opts) { const r = await fetch(url, opts); if (!(r.ok || r.type === 'opaque')) throw new Error(r.status); await r.arrayBuffer(); },
+  // Run fetches a few at a time, skipping what's saved; stops when asked or when offline.
+  async pool(urls, key, n = 3, opts) {
+    const st = this.stat[key]; st[0] = 0; st[1] = urls.length; let i = 0;
+    const missed = [];
+    const work = async () => {
+      while (i < urls.length && !this.stopReq) {
+        if (!this.allowed()) { this.stopReq = true; break; }
+        const u = urls[i++];
+        try {
+          if (!(await this.has(u))) {
+            await this.get(u, opts);
+            // Saved? If the phone is out of space, stop and say so.
+            // (the saving finishes a moment after the file arrives)
+            let saved = false;
+            for (const ms of [200, 800, 2500]) { await new Promise(r => setTimeout(r, ms)); if ((saved = await this.has(u))) break; }
+            if (!saved) {
+              missed.push(u);
+              // Several in a row not saved: stop only if the phone really is out of space.
+              if (++this.misses >= 3 && navigator.storage && navigator.storage.estimate) {
+                try { const e = await navigator.storage.estimate(); if (e.quota && e.usage / e.quota > 0.92) { this.full = true; this.stopReq = true; } } catch (_) {}
+                this.misses = 0;
+              }
+              continue;
+            }
+          }
+          this.misses = 0; st[0]++;
+        } catch (_) {}
+        if (st[0] % 20 === 0) this.render();
+      }
+    };
+    await Promise.all(Array.from({ length: n }, work));
+    // One more try for files that didn't save the first time.
+    if (missed.length && !this.stopReq) for (const u of missed) {
+      if (this.stopReq || !this.allowed()) break;
+      try { await this.get(u, opts); await new Promise(r => setTimeout(r, 1500)); if (await this.has(u)) st[0]++; } catch (_) {}
+    }
+    this.render();
+  },
+  audioUrls: async function (r) {
+    const urls = [];
+    for (let s = 1; s <= 114; s++) {
+      if (r.missing && r.missing.includes(s)) continue;
+      const tm = timedFor(r, s);
+      if (tm) { try { const t = await getTimings(tm, s); urls.push(t.url || `${tm.base}${pad3(s)}.mp3`); } catch (_) {} }
+      else for (let a = 1; a <= Q.ch(s).ayahs; a++) urls.push(`${AUDIO_BASE}/${r.id}/${pad3(s)}${pad3(a)}.mp3`);
+      if (this.stopReq) break;
+    }
+    return urls;
+  },
+  async run() {
+    if (this.running || !this.on() || !this.allowed()) return;
+    this.running = true; this.stopReq = false; this.full = false; this.misses = 0; this.render();
+    try {
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+      await Q.load();
+      const list = await (await fetch('offline-files.json')).json();
+      await this.pool(list.map(x => x[0]), 'app', 4);
+      if (settings.tajweed && !this.stopReq) await this.pool(Array.from({ length: 604 }, (_, i) => TAJWEED_FONT(i + 1)), 'fonts', 4);
+      const r = currentReciter(); this.stat.reciter = r.name + (r.style ? ' · ' + r.style : '');
+      if (!this.stopReq) await this.pool(await this.audioUrls(r), 'audio', r.timed ? 2 : 4);
+    } catch (_) {}
+    this.running = false; this.render();
+  },
+  restart() { this.stopReq = true; const go = () => { if (this.running) setTimeout(go, 500); else this.run(); }; setTimeout(go, 300); },
+  render() {
+    const el = $('#offlineStatus'); if (!el) return;
+    const pc = ([a, b]) => b ? Math.round(a / b * 100) : 0, st = this.stat;
+    if (!this.on()) { el.textContent = 'Off. Things you open are still kept for offline.'; return; }
+    const parts = [`App and Quran data ${pc(st.app)}%`];
+    if (settings.tajweed) parts.push(`tajweed colours ${pc(st.fonts)}%`);
+    parts.push(`${st.reciter || currentReciter().name}: ${st.audio[1] ? pc(st.audio) + '%' : 'waiting'}`);
+    el.textContent = (this.full ? 'Stopped: this phone is out of space. ' : this.running ? 'Downloading… ' : navigator.onLine ? '' : 'Paused (offline). ') + parts.join(' · ');
+  },
+};
+window.addEventListener('online', () => setTimeout(() => offline.run(), 2000));
+setTimeout(() => offline.run(), 15000);   // after the app has settled
+
 function applySettings() {
   document.documentElement.classList.toggle('tajweed-on', !!settings.tajweed);
   document.documentElement.style.setProperty('--quran-size', settings.fontSize + 'px');
@@ -1902,6 +1994,7 @@ function filterReciters() {
 $('#reciterSearch').addEventListener('input', filterReciters);
 $('#reciterSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const first = $('#reciterList li:not([hidden]) input'); if (first) { first.checked = true; setReciter(first.value); $('#reciterSheet').close(); } } });
 function setReciter(id) {
+  setTimeout(() => offline.restart(), 1000);
   if (!RECITERS.some(r => r.id === id)) return;
   settings.reciter = id; saveSettings();
   $('#setReciter').value = id;
@@ -3201,6 +3294,7 @@ function initSettingsSheet() {
     $('#setHide').checked = settings.hide;
     $('#setListenRepeat').checked = settings.listenRepeat;
     $('#setPopups').checked = settings.mistakePopups;
+    $('#setOffline').checked = offline.on(); $('#setOfflineCell').checked = !!settings.offlineCellular; offline.render();
     $('#setLevel').value = settings.checkLevel || 'tajweed';
     $('#setStrict').value = settings.strict || 'balanced';
     $('#setLevel').disabled = !(window.QuranSpeech && QuranSpeech.supported()) || settings.engine === 'browser';
@@ -3234,6 +3328,15 @@ function initSettingsSheet() {
   $('#setHide').addEventListener('change', e => { settings.hide = e.target.checked; saveSettings(); paintWords(); });
   $('#setListenRepeat').addEventListener('change', e => { settings.listenRepeat = e.target.checked; saveSettings(); });
   $('#setPopups').addEventListener('change', e => { settings.mistakePopups = e.target.checked; saveSettings(); });
+  $('#setOffline').addEventListener('change', e => { settings.offlineAll = e.target.checked; saveSettings(); if (e.target.checked) offline.restart(); else offline.stopReq = true; offline.render(); });
+  $('#setOfflineCell').addEventListener('change', e => { settings.offlineCellular = e.target.checked; saveSettings(); offline.restart(); });
+  $('#offlineClear').addEventListener('click', async e => {
+    e.preventDefault();
+    offline.stopReq = true;
+    try { const k = (await caches.keys()).filter(n => n.includes('audio')); await Promise.all(k.map(n => caches.delete(n))); } catch (_) {}
+    settings.offlineAll = false; saveSettings(); $('#setOffline').checked = false; offline.stat.audio = [0, 0]; offline.render();
+    toast('Downloaded recitations deleted. Turn "Keep everything" back on to download again.');
+  });
   $('#installBtn').addEventListener('click', () => { $('#settingsSheet').close(); install.start(); });
   $('#setStrict').addEventListener('change', e => { settings.strict = e.target.value; saveSettings(); if (rec.active && rec.phon) rec.update(false); });
   $('#setLevel').addEventListener('change', e => { settings.checkLevel = e.target.value; saveSettings(); if (rec.active && rec.phon) rec.update(false); });

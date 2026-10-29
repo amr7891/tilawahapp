@@ -5,7 +5,7 @@
 // - Books: each PDF is downloaded once, then read from the phone.
 // - Recitation audio streams from EveryAyah / MP3Quran (not from this site) and the
 //   ayahs you play are kept so they replay offline.
-const SHELL = 'tilawah-shell-v63';
+const SHELL = 'tilawah-shell-v65';
 const DATA = 'tilawah-data-v4';
 const BOOKS = 'tilawah-books-v1';
 const AUDIO = 'tilawah-audio-v1';
@@ -73,6 +73,14 @@ async function surahAudio(e, req) {
   const key = fileUrl(req);
   const hit = await c.match(key);
   if (hit) return withRange(req, hit);
+  // The app downloading for offline (not the player): fetch the whole file once and keep it.
+  if (req.destination !== 'audio' && req.destination !== 'video') {
+    let res = await fetch(key, { mode: 'cors' }).catch(() => null);
+    if (!(res && res.status === 200)) res = await fetch(key, { mode: 'no-cors' }).catch(() => null);
+    if (!res) return Response.error();
+    if (res.status === 200 || res.type === 'opaque') await c.put(key, res.clone()).catch(() => {});
+    return res;
+  }
   if (!saving.has(key)) {
     saving.add(key);
     e.waitUntil((async () => {
@@ -138,7 +146,14 @@ self.addEventListener('fetch', e => {
   if (url.pathname.includes('/data/timings/')) { e.respondWith(networkFirst(req)); return; }
   if (/\/(mushaf|hadith|data|fonts|vendor|models|arbooks)\//.test(url.pathname)) {
     // Index files change between versions and are saved with the app files.
-    if (/(index|meta|search|quran-ph)\.json$/.test(url.pathname) || url.pathname.endsWith('fonts.css')) { e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req))); return; }
+    if (/(index|meta|search|quran-ph)\.json$/.test(url.pathname) || url.pathname.endsWith('fonts.css')) {
+      // (kept with this version's app files, so they stay in step with it; also offline)
+      e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req).then(res => {
+        if (res.status === 200) { const copy = res.clone(); caches.open(SHELL).then(c => c.put(req, copy)).catch(() => {}); }
+        return res;
+      })));
+      return;
+    }
     e.respondWith(cacheFirst(req)); return;
   }
 

@@ -316,6 +316,11 @@
       <small class="field-note">Your last 5 recitations are kept on this phone (never uploaded). Play one back, or share or download it to send in with the words it marked wrongly.</small>
       <ul class="rec-list" id="recList"></ul>
     </div>
+    <h3 class="set-group">Offline</h3>
+    <label class="toggle"><input id="setOffline" type="checkbox"><span><b>Keep everything on this phone</b><small>When online, downloads the whole app (Quran, tajweed colours, translation, tafsir, hadith, Arabic books, speech model, about 250 MB) and the whole Quran in your reciter's voice (about 0.5–2 GB), so it all works offline</small></span></label>
+    <label class="toggle"><input id="setOfflineCell" type="checkbox"><span><b>Also on mobile data</b><small>Otherwise recitations download on Wi-Fi only, where the phone tells the app (Android)</small></span></label>
+    <p class="field-note offline-status" id="offlineStatus"></p>
+    <button type="button" class="btn" id="offlineClear">Delete downloaded recitations</button>
     <button type="button" class="btn install-row" id="installBtn">Install Tilawah on this device</button>
   </form>
 </dialog>
