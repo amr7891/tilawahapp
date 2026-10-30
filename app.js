@@ -582,10 +582,11 @@ const hifz = {
         <div><b>${this.streak(d)}</b><span>day streak</span></div>
       </div>
       <div class="hz-bar" aria-label="${(mem.length / 604 * 100).toFixed(1)}% of the Quran"><i style="width:${(mem.length / 604 * 100).toFixed(1)}%"></i></div>
+      <button type="button" class="btn hz-log" data-hz-log><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>${mem.length ? 'Log more of what you know' : 'Log what you already know'}</button>
       <h2 class="lib-h">Today · new <span class="lib-h-note">${pl.newPer === 0.5 ? `${(day.h || 0) + day.n.length ? 'done' : 'half a page'}` : `${day.n.length} of ${pl.newPer} page${pl.newPer === 1 ? '' : 's'}`}</span></h2>
       ${fresh.length ? `<ul class="hz-list">${fresh.map(p => row(p, 'new')).join('')}</ul>` : `<p class="lib-note">${pl.newPer ? 'Nothing new left in this direction. Change where you start below.' : 'No new pages planned. Set it in your plan below.'}</p>`}
       <h2 class="lib-h">Today · murajaʿah <span class="lib-h-note">${review.length ? `${this.JUZ_NAME[pl.reviewJuz]} · ${day.r.length} of ${review.length} pages` : this.JUZ_NAME[pl.reviewJuz]}</span></h2>
-      ${review.length ? `<ul class="hz-list">${review.map(p => row(p, 'rev')).join('')}</ul>` : '<p class="lib-note">Pages you memorize come up here for review. Already know some? Mark them in the map below.</p>'}
+      ${review.length ? `<ul class="hz-list">${review.map(p => row(p, 'rev')).join('')}</ul>` : '<p class="lib-note">Pages you memorize come up here for review. Already know some? Log them with the button above.</p>'}
       <h2 class="lib-h">Your plan</h2>
       <div class="hz-plan">
         <label class="field"><span>New memorization a day</span><select id="hzNew">${opt([0.5, 1, 2], pl.newPer, v => v === 0.5 ? 'Half a page' : v === 1 ? '1 page' : '2 pages')}</select></label>
@@ -593,16 +594,134 @@ const hifz = {
         <label class="field"><span>Memorize in this order</span><select id="hzDir"><option value="fwd"${pl.dir === 'fwd' ? ' selected' : ''}>Forward (page 1 → 604)</option><option value="back"${pl.dir === 'back' ? ' selected' : ''}>Backward (Juz ʿAmma first)</option></select></label>
         <label class="field"><span>Next new page</span><input id="hzStart" type="number" min="1" max="604" inputmode="numeric" value="${pl.start}"></label>
       </div>
-      <h2 class="lib-h">Progress <span class="lib-h-note">tap a page: learning → memorized → clear · tap a juz to mark it all</span></h2>
-      <div class="hz-legend"><span><i class="hz-c mem"></i>Memorized</span><span><i class="hz-c weak"></i>Weak</span><span><i class="hz-c learn"></i>Learning</span><span><i class="hz-c"></i>Not yet</span></div>
-      <div class="hz-map">${juzRows}</div>`;
+      <details class="hz-more"${store.get('hzMapOpen', false) ? ' open' : ''}><summary><b>Page map</b><span>every page at a glance · tap one to change it</span></summary>
+        <div class="hz-legend"><span><i class="hz-c mem"></i>Memorized</span><span><i class="hz-c weak"></i>Weak</span><span><i class="hz-c learn"></i>Learning</span><span><i class="hz-c"></i>Not yet</span></div>
+        <div class="hz-map">${juzRows}</div></details>`;
+  },
+  // Logging what you already know in bulk: whole surahs, whole juz or a run of pages,
+  // gathered into one selection and marked (or removed) with one tap.
+  juzPages(j) {
+    this._jp = this._jp || {};
+    if (!this._jp[j]) { const a = []; for (let p = 1; p <= 604; p++) if (Q.juzOfPage(p) === j) a.push(p); this._jp[j] = a; }
+    return this._jp[j];
+  },
+  surahPages(n) { const c = Q.ch(n), a = []; for (let p = c.pages[0]; p <= c.pages[1]; p++) a.push(p); return a; },
+  sel: { tab: 'surah', s: new Set(), j: new Set(), from: '', to: '', q: '' },
+  selPages() {
+    const L = this.sel, out = new Set();
+    L.s.forEach(n => this.surahPages(n).forEach(p => out.add(p)));
+    L.j.forEach(j => this.juzPages(j).forEach(p => out.add(p)));
+    const a = Math.round(+L.from), b = L.to === '' ? a : Math.round(+L.to);
+    if (a >= 1 && a <= 604 && b >= 1 && b <= 604) for (let p = Math.min(a, b); p <= Math.max(a, b); p++) out.add(p);
+    return [...out].sort((x, y) => x - y);
+  },
+  memCount(pages, d) { return pages.filter(p => d.pages[p] && d.pages[p].s === 'mem').length; },
+  openLog() {
+    this.sel = { tab: store.get('hzLogTab', 'surah'), s: new Set(), j: new Set(), from: '', to: '', q: '' };
+    this.renderLog();
+    if (!$('#hzLogSheet').open) $('#hzLogSheet').showModal();
+  },
+  renderLog() {
+    const L = this.sel, box = $('#hzLogBody');
+    const tabs = [['surah', 'Surahs', L.s.size], ['juz', 'Juz', L.j.size], ['pages', 'Pages', L.from !== '' ? 1 : 0]];
+    let body = '';
+    if (L.tab === 'surah') body = `<div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="hzlSearch" type="search" placeholder="Search surahs" autocomplete="off" value="${esc(L.q)}"></div>
+      <ul class="hzl-list" id="hzlSurahs"></ul>`;
+    else if (L.tab === 'juz') body = `<div class="hzl-juz" id="hzlJuz"></div>`;
+    else body = `<div class="hzl-range">
+        <label class="field"><span>From page</span><input id="hzlFrom" type="number" min="1" max="604" inputmode="numeric" placeholder="e.g. 582" value="${esc(String(L.from))}"></label>
+        <label class="field"><span>To page</span><input id="hzlTo" type="number" min="1" max="604" inputmode="numeric" placeholder="e.g. 604" value="${esc(String(L.to))}"></label>
+      </div><p class="lib-note" id="hzlRangeNote"></p>`;
+    box.innerHTML = `<div class="mode-switch" role="tablist">${tabs.map(([id, t, n]) => `<button type="button" class="mode${id === L.tab ? ' active' : ''}" data-hzl-tab="${id}" role="tab">${t}${n ? ` <span class="hzl-badge">${n}</span>` : ''}</button>`).join('')}</div>
+      ${body}
+      <div class="hzl-foot"><span class="hzl-sum" id="hzlSum"></span>
+        <button type="button" class="btn" data-hzl="clear">Remove</button>
+        <button type="button" class="btn primary" data-hzl="mark">Mark memorized</button></div>`;
+    this.fillLog();
+  },
+  // Refresh the list, grid and footer without rebuilding the inputs (keeps the keyboard up).
+  fillLog() {
+    const L = this.sel, d = this.data();
+    const ul = $('#hzlSurahs');
+    if (ul) {
+      const raw = L.q.trim(), q = raw.toLowerCase().replace(/[^a-z0-9]/g, ''), qa = Matcher.normalize(raw);
+      const rows = Q.meta.chapters.filter(c => !raw || String(c.n) === raw
+        || (q && (c.en.toLowerCase().replace(/[^a-z0-9]/g, '').includes(q) || c.tr.toLowerCase().replace(/[^a-z0-9]/g, '').includes(q)))
+        || (qa && Matcher.normalize(c.ar).includes(qa)));
+      ul.innerHTML = rows.length ? rows.map(c => {
+        const pages = this.surahPages(c.n), m = this.memCount(pages, d), all = m === pages.length;
+        const pr = pages.length > 1 ? `pages ${pages[0]}–${pages[pages.length - 1]}` : `page ${pages[0]}`;
+        return `<li><button type="button" class="hzl-s${L.s.has(c.n) ? ' on' : ''}" data-s="${c.n}" aria-pressed="${L.s.has(c.n)}">
+          <span class="hzl-n">${c.n}</span><span class="hzl-t"><b>${esc(c.en)}</b><small>${pr}${all ? ' · memorized' : m ? ` · ${m} of ${pages.length} memorized` : ''}</small></span>
+          <span class="hzl-ar" lang="ar">${esc(c.ar)}</span><i class="hzl-tick${all ? ' full' : ''}"></i></button></li>`;
+      }).join('') : '<li class="lib-note">No surah matches.</li>';
+    }
+    const jg = $('#hzlJuz');
+    if (jg) jg.innerHTML = Array.from({ length: 30 }, (_, i) => {
+      const j = i + 1, pages = this.juzPages(j), m = this.memCount(pages, d);
+      return `<button type="button" class="hzl-j${L.j.has(j) ? ' on' : ''}${m === pages.length ? ' full' : ''}" data-j="${j}" aria-pressed="${L.j.has(j)}"><b>${j}</b><small>${m === pages.length ? '✓' : m ? `${m}/${pages.length}` : ''}</small></button>`;
+    }).join('');
+    const note = $('#hzlRangeNote');
+    if (note) {
+      const a = Math.round(+L.from), b = L.to === '' ? a : Math.round(+L.to);
+      note.textContent = L.from === '' ? 'Type the first and last page you know, for example 582 to 604 for Juz ʿAmma.'
+        : a >= 1 && a <= 604 && b >= 1 && b <= 604 ? `${Math.abs(b - a) + 1} page${a === b ? '' : 's'}: ${this.pageLabel(Math.min(a, b)).split(' · ')[0]} to ${this.pageLabel(Math.max(a, b)).split(' · ')[0]}`
+        : 'Pages go from 1 to 604.';
+    }
+    document.querySelectorAll('#hzLogBody [data-hzl-tab]').forEach(b => {
+      const n = { surah: L.s.size, juz: L.j.size, pages: L.from !== '' ? 1 : 0 }[b.dataset.hzlTab];
+      let badge = b.querySelector('.hzl-badge');
+      if (n && !badge) { badge = document.createElement('span'); badge.className = 'hzl-badge'; b.append(' ', badge); }
+      if (badge) { if (n) badge.textContent = n; else badge.remove(); }
+    });
+    const pages = this.selPages(), m = this.memCount(pages, d), has = pages.filter(p => d.pages[p]).length;
+    $('#hzlSum').innerHTML = pages.length ? `<b>${pages.length} page${pages.length === 1 ? '' : 's'}</b>${m === pages.length ? 'already memorized' : m ? `${pages.length - m} new · ${m} already memorized` : 'all new'}` : '<b>Nothing chosen</b>pick what you know';
+    const mk = $('#hzLogBody [data-hzl="mark"]'); mk.disabled = !pages.length; mk.hidden = !!pages.length && m === pages.length;
+    $('#hzLogBody [data-hzl="clear"]').hidden = !has;
+  },
+  applyLog(mark) {
+    const pages = this.selPages(); if (!pages.length) return;
+    const d = this.data(), now = Date.now(); let n = 0;
+    pages.forEach(p => {
+      const pg = d.pages[p];
+      if (mark) { if (!pg || pg.s !== 'mem') { d.pages[p] = Object.assign({ r: [] }, pg || {}, { s: 'mem', t: now, m: now - 7 * 864e5 }); delete d.pages[p].h; n++; } }
+      else if (pg) { delete d.pages[p]; n++; }
+    });
+    if (!mark) Object.values(d.days).forEach(day => { day.n = day.n.filter(p => d.pages[p]); day.r = day.r.filter(p => d.pages[p]); });
+    this.save(d);
+    $('#hzLogSheet').close();
+    toast(mark ? `${n} page${n === 1 ? '' : 's'} logged as memorized. They join your murajaʿah.` : `${n} page${n === 1 ? '' : 's'} removed from your hifz.`);
+    this.render();
+  },
+  initLog() {
+    const sh = $('#hzLogSheet');
+    sh.addEventListener('click', e => {
+      const L = this.sel, t = e.target;
+      const tab = t.closest('[data-hzl-tab]');
+      if (tab) { L.tab = tab.dataset.hzlTab; store.set('hzLogTab', L.tab); this.renderLog(); return; }
+      const s = t.closest('[data-s]'); if (s) { const n = +s.dataset.s; L.s.has(n) ? L.s.delete(n) : L.s.add(n); this.fillLog(); return; }
+      const j = t.closest('[data-j]'); if (j) { const n = +j.dataset.j; L.j.has(n) ? L.j.delete(n) : L.j.add(n); this.fillLog(); return; }
+      const a = t.closest('[data-hzl]'); if (a) this.applyLog(a.dataset.hzl === 'mark');
+    });
+    sh.addEventListener('input', e => {
+      const L = this.sel, t = e.target;
+      if (t.id === 'hzlSearch') L.q = t.value;
+      else if (t.id === 'hzlFrom') L.from = t.value;
+      else if (t.id === 'hzlTo') L.to = t.value;
+      else return;
+      this.fillLog();
+    });
   },
   async test(p) {
     location.hash = 'page-' + p;
     try { const d = await Q.pageReady(p); const w = d.words[0]; setTimeout(() => rec.start(w.s, w.a, { scope: 'open', pos: w.pos, lastPage: p, hifz: p }), 700); } catch (_) {}
   },
   init() {
+    this.initLog();
+    $('#hifz').addEventListener('toggle', e => { if (e.target.matches('.hz-more')) store.set('hzMapOpen', e.target.open); }, true);
     $('#hifz').addEventListener('click', e => {
+      if (e.target.closest('[data-hz-log]')) { this.openLog(); return; }
       const cell = e.target.closest('[data-cell]');
       if (cell) {   // not yet → learning → memorized → not yet
         const p = +cell.dataset.cell, d = this.data(), cur = d.pages[p] && d.pages[p].s;
