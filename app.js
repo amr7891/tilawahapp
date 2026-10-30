@@ -1202,6 +1202,7 @@ function warmSpeech() {
 async function route() {
   document.querySelectorAll('dialog[open]').forEach(d => d.close());
   const h = decodeURIComponent(location.hash.slice(1)) || 'quran';
+  if (lectures.cur && !/^lec-[a-z0-9-]+-\d+$/.test(h)) lectures.stop();
   if (navStack.length > 1 && navStack[navStack.length - 2] === h) navStack.pop();
   else if (navStack[navStack.length - 1] !== h) navStack.push(h);
   let m;
@@ -1211,6 +1212,8 @@ async function route() {
   if ((m = h.match(/^hadith-([a-z0-9_]+)(?:-(\d+)(?:-(\d+))?)?$/))) { openLibrary(m[1], m[2] ? +m[2] : null, m[3] ? +m[3] : null); return; }
   if (h === 'inbox') { fileSharedBook(); return; }
   if ((m = h.match(/^ar-([a-z-]+?)(?:-(\d+)(?:-b(\d+))?)?$/))) { arReader.open(m[1], m[2] != null ? +m[2] : null, m[3] != null ? +m[3] : null); return; }
+  if ((m = h.match(/^lec-([a-z0-9-]+?)(?:-(\d+))?$/))) { if (m[2]) lectures.watch(m[1], +m[2]); else lectures.page(m[1]); return; }
+  if (h === 'lectures') { store.set('libTab', 'lectures'); location.replace('#library'); return; }
   if ((m = h.match(/^book-([a-z0-9-]+)$/))) { openBook(m[1]); return; }
   if ((m = h.match(/^read-([a-z0-9-]+?)-(\d+)(?:-p(\d+))?(?:-n(\d+))?$/))) { pdfReader.open(m[1], +m[2], { page: m[3] ? +m[3] : null, note: m[4] ? +m[4] : null }); return; }
   if (h === 'saved') { showView('saved'); scrollTop(); return; }
@@ -1679,8 +1682,9 @@ function onScroll() {
   scrollTimer = setTimeout(() => store.set('lastRead', { n: state.surahNum, a: surahView.visibleAyah() }), 400);
 }
 window.addEventListener('scroll', onScroll, { passive: true });
-window.addEventListener('scroll', () => arReader.scrolled(), { passive: true });
-$('#screen').addEventListener('scroll', () => arReader.scrolled(), { passive: true });
+window.addEventListener('scroll', () => { arReader.scrolled(); lectures.scrolled(); }, { passive: true });
+window.addEventListener('resize', () => lectures.layout());
+$('#screen').addEventListener('scroll', () => { arReader.scrolled(); lectures.scrolled(); }, { passive: true });
 $('#screen').addEventListener('scroll', onScroll, { passive: true });
 
 /* ------------------------------------------------------------------ */
@@ -2884,9 +2888,15 @@ async function renderShelves() {
       ${b.mine ? `<button type="button" class="icon-btn brow-rm" data-rm-book="${esc(b.id)}" aria-label="Remove ${esc(b.title)} from this phone"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`
         : (got ? `<span class="brow-tags"><span class="chip on">${one ? 'PDF' : `${got}/${b.files.length} PDFs`} ✓</span></span>` : '')}</a></li>`;
   };
-  const tabs = [['books', 'Books'], ['hadith', 'Hadith'], ['mine', 'My books']];
+  const tabs = [['books', 'Books'], ['lectures', 'Lectures'], ['hadith', 'Hadith'], ['mine', 'My books']];
   let body = '';
-  if (tab === 'hadith') {
+  if (tab === 'lectures') {
+    const ls = await lectures.catalog();
+    body = `<p class="lib-note">Scholars explaining the books, in Arabic with English subtitles. The book text follows along under the video, and you can take notes as you watch.</p>
+      <ul class="blist">${ls.map(s => { const b = AR_BOOKS.find(a => a.slug === s.book) || { title: '' }, last = store.get('lecLast:' + s.id, 0);
+        return `<li><a class="brow" href="#lec-${s.id}"><span class="brow-icon lec-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg></span>
+          <span class="info"><b>${esc(s.title)}</b><span class="brow-ar" lang="ar" dir="rtl">${esc(b.title)}</span><span>${esc(s.scholar)} · ${s.count} lessons${last ? ` · on lesson ${last}` : ''}</span></span></a></li>`; }).join('')}</ul>`;
+  } else if (tab === 'hadith') {
     body = `<h2 class="lib-h">The nine books <span class="lib-h-note">as published on Sunnah.com</span></h2><div class="hgrid">${H.index.filter(b => b.group === 'nine').map(card).join('')}</div>
       <h2 class="lib-h">Selections</h2><div class="hgrid">${H.index.filter(b => b.group === 'selections').map(card).join('')}</div>`;
   } else if (tab === 'mine') {
@@ -3175,7 +3185,7 @@ const arReader = {
     let idx;
     try { idx = await this.index(slug); } catch (_) { box.innerHTML = '<p class="empty">This book could not load. Check your connection and try again.</p>'; return; }
     $('#backBtn').hidden = false;
-    if (part == null) { this.cover(slug, idx); return; }
+    if (part == null) { await lectures.catalog(); this.cover(slug, idx); return; }
     part = Math.max(0, Math.min(idx.parts - 1, part));
     setTitle(idx.title, idx.author);
     let blocks;
@@ -3276,6 +3286,7 @@ const arReader = {
         <a class="btn primary" href="#ar-${slug}-${pos ? pos[0] : 0}${pos && pos[1] ? '-b' + pos[1] : ''}">${pos ? 'Continue reading' : 'Start reading'}</a>
         <button type="button" class="btn" id="arbSave">Save for offline</button>
       </div>
+      ${lectures.forBook(slug).map(l => `<a class="brow lec-link" href="#lec-${l.id}"><span class="brow-icon lec-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg></span><span class="info"><b>Lessons on this book</b><span>${esc(l.scholar)} · ${l.count} lessons · English subtitles</span></span></a>`).join('')}
       ${tocs.length >= 3 && tocs.length <= 250 ? `<h3 class="bk-sub">Contents</h3><ol class="arb-toc" dir="rtl" lang="ar">${tocs.map(([l, t, p, b]) => `<li class="l${l}"><a href="#ar-${slug}-${p}-b${b}">${esc(t)}</a></li>`).join('')}</ol>`
         : `<h3 class="bk-sub">Parts</h3><ol class="arb-toc parts">${Array.from({ length: idx.parts }, (_, i) => { const f = idx.toc.find(t => t[2] === i); return `<li><a href="#ar-${slug}-${i}"><b>Part ${i + 1}</b>${f ? ` <span lang="ar" dir="rtl">${esc(f[1].slice(0, 70))}</span>` : ''}</a></li>`; }).join('')}</ol>`}
       <p class="arb-credit">Text from the OpenITI corpus (CC BY-NC-SA 4.0). Modern editors\u2019 introductions and footnote numbers are left out; the author\u2019s words are unchanged.</p>`;
@@ -3288,6 +3299,295 @@ const arReader = {
         btn.textContent = 'Saved for offline'; toast('The whole book is on this phone now.');
       } catch (_) { btn.disabled = false; btn.textContent = 'Save for offline'; toast('Couldn\u2019t save the book. Check your connection and try again.', 'bad'); }
     });
+  },
+};
+
+
+/* Lectures: scholars explaining the books, in Arabic with English subtitles (burned into the
+   videos), played through YouTube's own embedded player. The book text sits under the video and
+   follows the lesson: from the lesson timings in lectures/<series>.json, and from places you mark
+   yourself ("The shaykh is here"). Notes are kept per lesson with the video time and the place in
+   the book. Everything you add stays on this phone. */
+const lectures = {
+  list: null, sync: {}, player: null, cur: null, timer: null, lastScroll: 0, nowKey: null,
+  async catalog() {
+    if (!this.list) { try { this.list = await (await fetch('lectures/catalog.json')).json(); } catch (_) { this.list = []; } }
+    return this.list;
+  },
+  async series(id) { return (await this.catalog()).find(s => s.id === id) || null; },
+  forBook(slug) { return (this.list || []).filter(s => s.book === slug); },
+  async syncFile(id) {
+    if (!(id in this.sync)) { try { const r = await fetch(`lectures/${id}.json`); this.sync[id] = r.ok ? await r.json() : null; } catch (_) { this.sync[id] = null; } }
+    return this.sync[id];
+  },
+  ids(id) { return store.get('lecIds:' + id, []); },
+  titles(id) { return store.get('lecTitles:' + id, {}); },
+  prog(id) { return store.get('lecProg:' + id, {}); },
+  notes(id) { return store.get('lecNotes:' + id, []); },
+  fmt(t) { t = Math.max(0, Math.floor(t || 0)); const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); },
+  // Where the book is at time t in lesson n: the last timing at or before t (the lesson's own
+  // timings and the places you marked), else where the lesson before it ended, else the start.
+  points(s, n) {
+    const v = this.ids(s.id)[n - 1], f = this.sync[s.id], own = v ? store.get('lecSync:' + v, []) : [];
+    const built = v && f && f.videos && f.videos[v] ? f.videos[v].sync || [] : [];
+    return built.map(x => x.concat('b')).concat(own.map(x => x.concat('u'))).sort((a, b) => a[0] - b[0]);
+  },
+  startOf(s, n) {
+    const pts = this.points(s, n); if (pts.length) return [pts[0][1], pts[0][2]];
+    for (let k = n - 1; k >= 1; k--) { const q = this.points(s, k); if (q.length) { const l = q[q.length - 1]; return [l[1], l[2]]; } const e = store.get(`lecEnd:${s.id}:${k}`, null); if (e) return e; }
+    return [0, 0];
+  },
+  at(s, n, t) {
+    const pts = this.points(s, n); let hit = null;
+    for (const x of pts) { if (x[0] <= t + 0.5) hit = x; else break; }
+    return hit ? [hit[1], hit[2], hit[3]] : this.startOf(s, n).concat('s');
+  },
+  async page(id) {   // the series: its lessons, where you are, your notes
+    const s = await this.series(id); if (!s) { location.hash = 'library'; return; }
+    this.stop(); await arCatalog();
+    showView('library'); state.libBack = 'lectures'; $('#backBtn').hidden = false;
+    const b = AR_BOOKS.find(a => a.slug === s.book) || { title: '' };
+    setTitle(s.title, s.scholar);
+    const prog = this.prog(id), titles = this.titles(id), notes = this.notes(id), last = store.get('lecLast:' + id, 0);
+    $('#library').innerHTML = `
+      <div class="book-head lec-head"><b class="bh-title" lang="ar" dir="rtl">${esc(b.title)}</b><span>${esc(s.scholar)} <span lang="ar" dir="rtl">· ${esc(s.scholarAr)}</span></span>
+        <span>${s.count} lessons · Arabic with English subtitles · ${esc(s.channel)} on YouTube</span></div>
+      <div class="pdf-get arb-actions"><a class="btn primary" href="#lec-${id}-${last || 1}">${last ? `Continue lesson ${last}` : 'Start lesson 1'}</a>
+        <a class="btn" href="#ar-${s.book}">Read the book</a></div>
+      <p class="lib-note">The book follows along under the video. Plays from YouTube, so it needs internet.</p>
+      <ol class="lec-list">${Array.from({ length: s.count }, (_, i) => { const n = i + 1, p = prog[n], nn = notes.filter(x => x.n === n).length;
+        const pct = p && p[1] ? Math.min(100, Math.round(p[0] / p[1] * 100)) : 0;
+        return `<li><a class="lec-row${n === last ? ' cur' : ''}" href="#lec-${id}-${n}"><span class="lec-n">${n}</span><span class="lec-t"><b>${titles[n] ? esc(titles[n]) : `Lesson ${n}`}</b>
+          <small>${pct >= 95 ? 'Watched' : pct ? `${pct}% watched` : 'Not started'}${nn ? ` · ${nn} note${nn > 1 ? 's' : ''}` : ''}</small>${pct ? `<i class="lec-pg"><i style="width:${pct}%"></i></i>` : ''}</span></a></li>`; }).join('')}</ol>`;
+    scrollTop();
+  },
+  async watch(id, n) {
+    const s = await this.series(id); if (!s) { location.hash = 'library'; return; }
+    n = Math.max(1, Math.min(s.count, n));
+    await arCatalog(); await this.syncFile(id);
+    showView('library'); state.libBack = 'lec-' + id; $('#backBtn').hidden = false;
+    setTitle(`Lesson ${n} of ${s.count}`, s.scholar);
+    const box = $('#library');
+    let idx; try { idx = await arReader.index(s.book); } catch (_) { box.innerHTML = '<p class="empty">The book could not load. Check your connection and try again.</p>'; return; }
+    store.set('lecLast:' + id, n);
+    const parts = [];
+    try { for (let p = 0; p < idx.parts; p++) parts.push(await (await fetch(`arbooks/${s.book}/p${p}.json`)).json()); }
+    catch (_) { box.innerHTML = '<p class="empty">The book could not load. Check your connection and try again.</p>'; return; }
+    const hl = store.get('arHl:' + s.book, {}), notes = this.notes(id);
+    const noted = new Set(notes.map(x => x.p + ':' + x.b));
+    const icon = (d, label, attr) => `<button type="button" class="icon-btn" ${attr} aria-label="${label}"><svg viewBox="0 0 24 24">${d}</svg></button>`;
+    box.innerHTML = `
+      <div class="lec-video"><div class="lec-frame"><div id="lecPlayer"></div>${navigator.onLine ? '' : '<p class="lec-off">You’re offline. Lectures play from YouTube, so connect to watch.</p>'}</div>
+        <div class="lec-bar">
+          ${icon('<path d="M15 6l-6 6 6 6"/>', 'Previous lesson', `data-lec="prev"${n === 1 ? ' disabled' : ''}`)}
+          <button type="button" class="lec-follow on" data-lec="follow" aria-pressed="true"><i></i>Follow along</button>
+          <span class="lec-sp"></span>
+          ${icon('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>', 'Add a note here', 'data-lec="note"')}
+          <button type="button" class="lec-notes-btn" data-lec="notes">Notes${notes.filter(x => x.n === n).length ? ` <b>${notes.filter(x => x.n === n).length}</b>` : ''}</button>
+          ${icon('<path d="M9 6l6 6-6 6"/>', 'Next lesson', `data-lec="next"${n === s.count ? ' disabled' : ''}`)}
+        </div></div>
+      <p class="lec-hint" id="lecHint"></p>
+      <article class="arb lec" dir="rtl" lang="ar" style="--arb-size:${arReader.size()}px">${parts.map((blocks, p) => blocks.map(([l, t], i) => {
+        const k = p + ':' + i, cls = (hl[k] ? ' hl-' + hl[k] : '') + (noted.has(k) ? ' has-note' : '');
+        return l ? `<h${l + 2} class="arb-h${cls}" data-p="${p}" data-b="${i}" id="lb-${p}-${i}">${esc(t)}</h${l + 2}>` : `<p class="${cls.trim()}" data-p="${p}" data-b="${i}" id="lb-${p}-${i}">${esc(t)}</p>`;
+      }).join('')).join('')}</article>
+      <p class="arb-credit">${esc(idx.title)} — text from the OpenITI corpus (CC BY-NC-SA 4.0). Lesson by ${esc(s.scholar)}, played from ${esc(s.channel)} on YouTube.</p>`;
+    this.cur = { s, n, follow: true, t: 0 };
+    this.layout();
+    const [p0, b0] = this.startOf(s, n);
+    this.show(p0, b0, true);
+    this.hint();
+    box.querySelector('.lec-bar').addEventListener('click', e => this.barClick(e));
+    box.querySelector('.arb').addEventListener('click', e => { const el = e.target.closest('[data-b]'); if (el) this.pick(el); });
+    this.lastScroll = 0;
+    this.load(s, n);
+    awake.check();
+  },
+  hint() {
+    const c = this.cur, h = $('#lecHint'); if (!c || !h) return;
+    const built = this.points(c.s, c.n).some(x => x[3] === 'b');
+    h.textContent = built ? '' : 'Tap the paragraph the shaykh is reading and choose “The shaykh is here”. The text then follows this lesson by itself, every time you watch it.';
+    h.hidden = built;
+  },
+  // YouTube's embedded player (privacy-enhanced host), loaded only when a lesson is opened.
+  api() {
+    if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
+    if (!this.apiP) this.apiP = new Promise((res, rej) => {
+      const prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { if (prev) try { prev(); } catch (_) {} res(window.YT); };
+      const sc = document.createElement('script'); sc.src = 'https://www.youtube.com/iframe_api'; sc.async = true;
+      sc.onerror = () => { this.apiP = null; rej(new Error('offline')); };
+      document.head.append(sc);
+    });
+    return this.apiP;
+  },
+  async load(s, n) {
+    let YT; try { YT = await this.api(); } catch (_) { return; }
+    if (!this.cur || this.cur.s !== s || !document.getElementById('lecPlayer')) return;
+    const resume = (this.prog(s.id)[n] || [0, 0]);
+    this.player = new YT.Player('lecPlayer', {
+      host: 'https://www.youtube-nocookie.com', width: '100%', height: '100%',
+      playerVars: { listType: 'playlist', list: s.playlist, index: n - 1, playsinline: 1, rel: 0, start: resume[1] && resume[0] / resume[1] < 0.95 ? Math.floor(resume[0]) : 0 },
+      events: {
+        onReady: () => this.ready(),
+        onStateChange: e => this.state(e.data),
+      },
+    });
+  },
+  ready() {
+    const c = this.cur, pl = this.player; if (!c || !pl) return;
+    try { const ids = pl.getPlaylist && pl.getPlaylist(); if (ids && ids.length) { store.set('lecIds:' + c.s.id, ids); this.hint(); const [p, b] = this.startOf(c.s, c.n); this.show(p, b, true); } } catch (_) {}
+    const sk = store.get('lecSeek', null);
+    if (sk && sk[0] === c.s.id && sk[1] === c.n) { store.set('lecSeek', null); this.seek(sk[2]); }
+  },
+  state(st) {
+    const c = this.cur, pl = this.player; if (!c || !pl) return;
+    // The playlist moved on to the next lesson by itself.
+    try { const i = pl.getPlaylistIndex(); if (i >= 0 && i + 1 !== c.n) { this.save(); c.n = i + 1; store.set('lecLast:' + c.s.id, c.n); history.replaceState(null, '', '#lec-' + c.s.id + '-' + c.n); navStack[navStack.length - 1] = 'lec-' + c.s.id + '-' + c.n; setTitle(`Lesson ${c.n} of ${c.s.count}`, c.s.scholar); this.hint(); } } catch (_) {}
+    try { const d = pl.getVideoData && pl.getVideoData(); if (d && d.title) { const t = this.titles(c.s.id); if (t[c.n] !== d.title) { t[c.n] = d.title; store.set('lecTitles:' + c.s.id, t); } } } catch (_) {}
+    clearInterval(this.timer); this.timer = null;
+    if (st === 1) this.timer = setInterval(() => this.tick(), 1000);   // only while it plays
+    else this.save();
+    if (st === 0) { const [p, b] = this.at(c.s, c.n, 1e9); store.set(`lecEnd:${c.s.id}:${c.n}`, [p, b]); }
+  },
+  tick() {
+    const c = this.cur, pl = this.player; if (!c || !pl || !pl.getCurrentTime) return;
+    c.t = pl.getCurrentTime();
+    const [p, b] = this.at(c.s, c.n, c.t);
+    this.show(p, b, false);
+    if (Math.floor(c.t) % 10 === 0) this.save();
+  },
+  save() {
+    const c = this.cur, pl = this.player; if (!c || !pl || !pl.getCurrentTime) return;
+    try { const t = pl.getCurrentTime(), d = pl.getDuration(); if (d > 0) { const pr = this.prog(c.s.id); pr[c.n] = [Math.round(t), Math.round(d)]; store.set('lecProg:' + c.s.id, pr); } } catch (_) {}
+  },
+  // Mark the passage being explained; scroll to it unless you've just scrolled the text yourself.
+  show(p, b, force) {
+    const key = p + ':' + b; if (key === this.nowKey && !force) return;
+    this.nowKey = key;
+    document.querySelectorAll('.arb.lec .now').forEach(el => el.classList.remove('now'));
+    const el = document.getElementById(`lb-${p}-${b}`); if (!el) return;
+    el.classList.add('now');
+    if (this.cur && (force || (this.cur.follow && Date.now() - this.lastScroll > 6000))) {
+      this.layout();
+      this.autoAt = Date.now();
+      el.scrollIntoView({ block: 'start', behavior: force ? 'auto' : 'smooth' });
+    }
+  },
+  // The video stays pinned under the top bar; the passage scrolls in just below it.
+  layout() {
+    const tb = document.querySelector('.topbar'), vid = document.querySelector('.lec-video'), art = document.querySelector('.arb.lec');
+    if (!vid || !art) return;
+    const h = tb ? tb.getBoundingClientRect().height : 0;
+    vid.style.top = h + 'px';
+    art.style.setProperty('--lec-off', Math.round(h + vid.getBoundingClientRect().height + 12) + 'px');
+  },
+  scrolled() { if (this.cur && Date.now() - (this.autoAt || 0) > 900) this.lastScroll = Date.now(); },
+  barClick(e) {
+    const b = e.target.closest('[data-lec]'); if (!b || b.disabled) return;
+    const c = this.cur; if (!c) return;
+    const a = b.dataset.lec;
+    if (a === 'prev' || a === 'next') { this.save(); location.hash = `lec-${c.s.id}-${c.n + (a === 'next' ? 1 : -1)}`; return; }
+    if (a === 'follow') { c.follow = !c.follow; b.classList.toggle('on', c.follow); b.setAttribute('aria-pressed', c.follow); if (c.follow) { this.lastScroll = 0; this.nowKey = null; const [p, q] = this.at(c.s, c.n, this.time()); this.show(p, q, true); } return; }
+    if (a === 'note') { const now = document.querySelector('.arb.lec .now'); this.noteSheet(now ? +now.dataset.p : 0, now ? +now.dataset.b : 0); return; }
+    if (a === 'notes') this.notesSheet();
+  },
+  time() { try { return this.player && this.player.getCurrentTime ? this.player.getCurrentTime() : 0; } catch (_) { return 0; } },
+  pause() { try { this.player && this.player.pauseVideo && this.player.pauseVideo(); } catch (_) {} },
+  seek(t) { try { if (this.player && this.player.seekTo) { this.player.seekTo(t, true); this.player.playVideo(); } } catch (_) {} },
+  // Tap a paragraph: the shaykh is here / note / highlight.
+  pick(el) {
+    const prev = document.querySelector('.arb.lec .sel'); if (prev) prev.classList.remove('sel');
+    let bar = $('#lecTools');
+    if (this.selEl === el && bar && !bar.hidden) { this.selEl = null; bar.hidden = true; return; }
+    this.selEl = el; el.classList.add('sel');
+    if (!bar) {
+      bar = document.createElement('div'); bar.id = 'lecTools'; bar.className = 'arb-tools lec-tools';
+      bar.innerHTML = `<button type="button" class="btn small primary" data-lt="here">The shaykh is here</button>
+        <button type="button" class="btn small" data-lt="note">Note</button>
+        <div class="hl-swatches">${['yellow', 'green', 'blue', 'pink'].map(c => `<button type="button" class="sw" data-hl="${c}" aria-label="Highlight ${c}"></button>`).join('')}</div>
+        <button type="button" class="icon-btn" data-lt="unhl" aria-label="Remove highlight"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
+      document.body.append(bar);
+      bar.addEventListener('click', e => this.toolClick(e));
+    }
+    bar.hidden = false;
+  },
+  closeTools() { const bar = $('#lecTools'); if (bar) bar.hidden = true; if (this.selEl) this.selEl.classList.remove('sel'); this.selEl = null; },
+  toolClick(e) {
+    const el = this.selEl, c = this.cur; if (!el || !el.isConnected || !c) { this.closeTools(); return; }
+    const p = +el.dataset.p, b = +el.dataset.b, k = p + ':' + b;
+    const sw = e.target.closest('[data-hl]'), a = e.target.closest('[data-lt]');
+    if (sw || (a && a.dataset.lt === 'unhl')) {
+      const hl = store.get('arHl:' + c.s.book, {}); el.className = el.className.replace(/\s*hl-\w+/g, '');
+      if (sw) { hl[k] = sw.dataset.hl; el.classList.add('hl-' + sw.dataset.hl); } else delete hl[k];
+      store.set('arHl:' + c.s.book, hl);
+      const t = store.get('arHlT:' + c.s.book, {}); if (hl[k]) t[k] = [Date.now(), el.textContent.slice(0, 90)]; else delete t[k]; store.set('arHlT:' + c.s.book, t);
+      this.closeTools(); return;
+    }
+    if (!a) return;
+    if (a.dataset.lt === 'here') {
+      const v = this.ids(c.s.id)[c.n - 1];
+      if (!v) { toast('Start the video first, then mark the place.', 'warn'); return; }
+      const t = Math.round(this.time() * 10) / 10;
+      const own = store.get('lecSync:' + v, []).filter(x => Math.abs(x[0] - t) > 3);
+      own.push([t, p, b]); own.sort((x, y) => x[0] - y[0]); store.set('lecSync:' + v, own);
+      this.closeTools(); this.nowKey = null; this.lastScroll = 0; this.show(p, b, false); this.hint();
+      toast(`Marked at ${this.fmt(t)}. The text follows from here.`); return;
+    }
+    if (a.dataset.lt === 'note') { this.closeTools(); this.noteSheet(p, b); }
+  },
+  noteSheet(p, b, edit) {
+    const c = this.cur; if (!c) return;
+    const t = edit ? edit.t : this.time();
+    const el = document.getElementById(`lb-${p}-${b}`);
+    this.pause();
+    $('#lecNoteBody').innerHTML = `<p class="lec-at"><span class="lec-chip">${this.fmt(t)}</span> Lesson ${c.n}</p>
+      ${el ? `<blockquote class="lec-q" dir="rtl" lang="ar">${esc(el.textContent.slice(0, 160))}${el.textContent.length > 160 ? '…' : ''}</blockquote>` : ''}
+      <textarea id="lecNoteText" rows="5" placeholder="Your note">${edit ? esc(edit.text) : ''}</textarea>
+      <div class="lec-note-acts">${edit ? '<button type="button" class="btn" data-ln="del">Delete</button>' : ''}<button type="button" class="btn primary" data-ln="save">Save note</button></div>`;
+    const sh = $('#lecNoteSheet');
+    sh.querySelector('[data-ln="save"]').onclick = () => {
+      const text = $('#lecNoteText').value.trim(); if (!text) { $('#lecNoteText').focus(); return; }
+      let ns = this.notes(c.s.id);
+      if (edit) ns = ns.map(x => x.at === edit.at ? Object.assign({}, x, { text }) : x);
+      else ns.push({ n: c.n, t: Math.round(t), p, b, text, at: Date.now() });
+      store.set('lecNotes:' + c.s.id, ns); sh.close(); this.marks(); toast('Note saved.');
+    };
+    const del = sh.querySelector('[data-ln="del"]');
+    if (del) del.onclick = () => { store.set('lecNotes:' + c.s.id, this.notes(c.s.id).filter(x => x.at !== edit.at)); sh.close(); this.marks(); toast('Note deleted.'); };
+    if (!sh.open) sh.showModal();
+    setTimeout(() => $('#lecNoteText').focus(), 50);
+  },
+  marks() {   // refresh note markers and the count
+    const c = this.cur; if (!c) return;
+    const ns = this.notes(c.s.id), set = new Set(ns.map(x => x.p + ':' + x.b));
+    document.querySelectorAll('.arb.lec [data-b]').forEach(el => el.classList.toggle('has-note', set.has(el.dataset.p + ':' + el.dataset.b)));
+    const k = ns.filter(x => x.n === c.n).length, btn = document.querySelector('[data-lec="notes"]');
+    if (btn) btn.innerHTML = `Notes${k ? ` <b>${k}</b>` : ''}`;
+  },
+  notesSheet(all) {
+    const c = this.cur; if (!c) return;
+    const ns = this.notes(c.s.id).filter(x => all || x.n === c.n).sort((a, b) => a.n - b.n || a.t - b.t);
+    const body = $('#lecNotesBody');
+    body.innerHTML = `<div class="mode-switch small"><button type="button" class="mode${all ? '' : ' active'}" data-nl="this">This lesson</button><button type="button" class="mode${all ? ' active' : ''}" data-nl="all">All lessons</button></div>
+      ${ns.length ? `<ul class="lec-nlist">${ns.map(x => `<li><button type="button" class="lec-nrow" data-at="${x.at}"><span class="lec-chip">${all ? `L${x.n} · ` : ''}${this.fmt(x.t)}</span><span>${esc(x.text)}</span></button><button type="button" class="hz-link" data-edit="${x.at}">Edit</button></li>`).join('')}</ul>`
+        : `<p class="lib-note">${all ? 'No notes yet.' : 'No notes on this lesson yet. Tap the pencil while you watch, or tap a paragraph and choose Note.'}</p>`}`;
+    body.onclick = e => {
+      const m = e.target.closest('[data-nl]'); if (m) { this.notesSheet(m.dataset.nl === 'all'); return; }
+      const ed = e.target.closest('[data-edit]'); const row = e.target.closest('[data-at]');
+      const x = ed ? this.notes(c.s.id).find(y => y.at === +ed.dataset.edit) : row ? this.notes(c.s.id).find(y => y.at === +row.dataset.at) : null;
+      if (!x) return;
+      if (ed) { $('#lecNotesSheet').close(); this.noteSheet(x.p, x.b, x); return; }
+      $('#lecNotesSheet').close();
+      if (x.n !== c.n) { store.set('lecSeek', [c.s.id, x.n, x.t]); location.hash = `lec-${c.s.id}-${x.n}`; return; }
+      this.seek(x.t); this.nowKey = null; this.lastScroll = Date.now(); this.show(x.p, x.b, true);
+    };
+    if (!$('#lecNotesSheet').open) $('#lecNotesSheet').showModal();
+  },
+  stop() {
+    clearInterval(this.timer); this.timer = null;
+    if (this.player) { this.save(); try { this.player.destroy(); } catch (_) {} }
+    this.player = null; this.cur = null; this.nowKey = null; this.closeTools();
   },
 };
 

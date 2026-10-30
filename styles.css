@@ -938,3 +938,52 @@ input, textarea, select { font-size: 16px; }
 .hzl-tag { font-style: normal; font-size: 11px; font-weight: 700; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 99px; padding: 2px 7px; margin-left: 4px; vertical-align: 2px; }
 .hzl-h { margin: 6px 0 0; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
 #hzPickBody { display: grid; gap: 12px; }
+
+/* Lectures */
+.lec-ic { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent); }
+.lec-ic svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.lec-ic svg path { fill: currentColor; stroke: none; }
+.lec-link { margin: 10px 0 4px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); text-decoration: none; }
+.lec-list { list-style: none; margin: 14px 0 28px; padding: 0; display: grid; gap: 6px; }
+.lec-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); text-decoration: none; }
+.lec-row.cur { border-color: var(--accent); }
+.lec-n { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 13px; font-weight: 700; color: var(--muted); }
+.lec-row.cur .lec-n { background: var(--accent); color: #fff; }
+.lec-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lec-t b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .lec-t small { font-size: 12px; color: var(--muted); }
+.lec-pg { display: block; height: 3px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin-top: 3px; }
+.lec-pg i { display: block; height: 100%; background: var(--accent); }
+.lec-video { position: sticky; top: 64px; z-index: 15; margin: -14px calc(-1 * max(16px, env(safe-area-inset-left, 0px))) 0; background: var(--bg); box-shadow: 0 1px 0 var(--line); }
+.lec-frame { position: relative; aspect-ratio: 16 / 9; background: #000; }
+.lec-frame iframe, .lec-frame #lecPlayer { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.lec-off { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: #fff; font-size: 14px; }
+.lec-bar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; }
+.lec-bar .icon-btn:disabled { opacity: .3; }
+.lec-sp { flex: 1; }
+.lec-follow { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 13px; font-weight: 600; }
+.lec-follow i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.lec-follow.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.lec-follow.on i { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.lec-notes-btn { height: 32px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600; }
+.lec-notes-btn b { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 11px; margin-left: 3px; box-sizing: border-box; }
+.lec-hint { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); color: var(--muted); font-size: 13px; }
+.arb.lec [data-b] { scroll-margin-top: var(--lec-off, 320px); }
+.arb.lec .now { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset -3px 0 0 var(--accent); padding-right: 8px; }
+.arb.lec .has-note { position: relative; }
+.arb.lec .has-note::before { content: ''; position: absolute; left: -2px; top: .55em; width: 7px; height: 7px; border-radius: 50%; background: #C9962E; }
+.lec-tools { left: 10px; right: 10px; transform: none; max-width: 496px; margin: 0 auto; gap: 5px; padding: 8px; justify-content: center; }
+.lec-tools .sw { width: 24px; height: 24px; flex: none; }
+.lec-tools .hl-swatches { gap: 4px; }
+.lec-tools .icon-btn { width: 32px; height: 32px; flex: none; }
+.lec-tools .btn.small { height: 34px; padding: 0 10px; font-size: 13px; flex: none; }
+.lec-tools .btn.primary { color: #fff; }
+.lec-at { margin: 0; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.lec-chip { display: inline-block; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent); font-weight: 700; font-size: 12px; font-variant-numeric: tabular-nums; flex: none; }
+.lec-q { margin: 0; padding: 8px 12px; border-right: 3px solid var(--accent); background: var(--surface-2); border-radius: 8px; font-family: var(--font-quran); font-size: 17px; line-height: 1.8; }
+#lecNoteText { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink); padding: 10px 12px; font: inherit; font-size: 16px; resize: vertical; }
+.lec-note-acts { display: flex; gap: 8px; justify-content: flex-end; }
+.lec-note-acts .btn.primary { color: #fff; }
+.lec-nlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.lec-nlist li { display: flex; align-items: flex-start; gap: 6px; }
+.lec-nrow { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 14px; white-space: pre-wrap; }
+#lecNotesBody { display: grid; gap: 12px; }

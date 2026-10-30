@@ -5,7 +5,7 @@
 // - Books: each PDF is downloaded once, then read from the phone.
 // - Recitation audio streams from EveryAyah / MP3Quran (not from this site) and the
 //   ayahs you play are kept so they replay offline.
-const SHELL = 'tilawah-shell-v71';
+const SHELL = 'tilawah-shell-v72';
 const DATA = 'tilawah-data-v4';
 const BOOKS = 'tilawah-books-v1';
 const AUDIO = 'tilawah-audio-v1';
@@ -144,6 +144,8 @@ self.addEventListener('fetch', e => {
 
   // Our own ayah timings: fresh when online (they're improved between versions), saved for offline.
   if (url.pathname.includes('/data/timings/')) { e.respondWith(networkFirst(req)); return; }
+  // Lecture lists and their follow-along timings: fresh when online, saved for offline.
+  if (url.pathname.includes('/lectures/')) { e.respondWith(networkFirst(req)); return; }
   if (/\/(mushaf|hadith|data|fonts|vendor|models|arbooks)\//.test(url.pathname)) {
     // Index files change between versions and are saved with the app files.
     if (/(index|meta|search|quran-ph)\.json$/.test(url.pathname) || url.pathname.endsWith('fonts.css')) {
