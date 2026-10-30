@@ -2892,10 +2892,13 @@ async function renderShelves() {
   let body = '';
   if (tab === 'lectures') {
     const ls = await lectures.catalog();
-    body = `<p class="lib-note">Scholars explaining the books, in Arabic with English subtitles. The book text follows along under the video, and you can take notes as you watch.</p>
-      <ul class="blist">${ls.map(s => { const b = AR_BOOKS.find(a => a.slug === s.book) || { title: '' }, last = store.get('lecLast:' + s.id, 0);
-        return `<li><a class="brow" href="#lec-${s.id}"><span class="brow-icon lec-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg></span>
-          <span class="info"><b>${esc(s.title)}</b><span class="brow-ar" lang="ar" dir="rtl">${esc(b.title)}</span><span>${esc(s.scholar)} · ${s.count} lessons${last ? ` · on lesson ${last}` : ''}</span></span></a></li>`; }).join('')}</ul>`;
+    // Grouped by book, in the order of the library's Arabic books.
+    const order = AR_BOOKS.map(a => a.slug).filter(sl => ls.some(s => s.book === sl));
+    body = `<p class="lib-note">Scholars explaining the books in Arabic. The book text follows along under the video, and you can take notes as you watch.</p>
+      ${order.map(sl => { const b = AR_BOOKS.find(a => a.slug === sl) || { title: '' };
+        return `<h2 class="lib-h lec-bh" lang="ar" dir="rtl">${esc(b.title)}</h2><ul class="blist">${ls.filter(s => s.book === sl).map(s => { const last = store.get('lecLast:' + s.id, 0);
+          return `<li><a class="brow" href="#lec-${s.id}"><span class="brow-icon lec-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg></span>
+            <span class="info"><b>${esc(s.scholar)}</b><span class="brow-ar" lang="ar" dir="rtl">${esc(s.scholarAr)}</span><span>${s.count} lessons${last ? ` · on lesson ${last}` : ''}</span></span></a></li>`; }).join('')}</ul>`; }).join('')}`;
   } else if (tab === 'hadith') {
     body = `<h2 class="lib-h">The nine books <span class="lib-h-note">as published on Sunnah.com</span></h2><div class="hgrid">${H.index.filter(b => b.group === 'nine').map(card).join('')}</div>
       <h2 class="lib-h">Selections</h2><div class="hgrid">${H.index.filter(b => b.group === 'selections').map(card).join('')}</div>`;
@@ -3286,7 +3289,7 @@ const arReader = {
         <a class="btn primary" href="#ar-${slug}-${pos ? pos[0] : 0}${pos && pos[1] ? '-b' + pos[1] : ''}">${pos ? 'Continue reading' : 'Start reading'}</a>
         <button type="button" class="btn" id="arbSave">Save for offline</button>
       </div>
-      ${lectures.forBook(slug).map(l => `<a class="brow lec-link" href="#lec-${l.id}"><span class="brow-icon lec-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg></span><span class="info"><b>Lessons on this book</b><span>${esc(l.scholar)} · ${l.count} lessons · English subtitles</span></span></a>`).join('')}
+      ${lectures.forBook(slug).map(l => `<a class="brow lec-link" href="#lec-${l.id}"><span class="brow-icon lec-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg></span><span class="info"><b>Lessons on this book</b><span>${esc(l.scholar)} · ${l.count} lessons</span></span></a>`).join('')}
       ${tocs.length >= 3 && tocs.length <= 250 ? `<h3 class="bk-sub">Contents</h3><ol class="arb-toc" dir="rtl" lang="ar">${tocs.map(([l, t, p, b]) => `<li class="l${l}"><a href="#ar-${slug}-${p}-b${b}">${esc(t)}</a></li>`).join('')}</ol>`
         : `<h3 class="bk-sub">Parts</h3><ol class="arb-toc parts">${Array.from({ length: idx.parts }, (_, i) => { const f = idx.toc.find(t => t[2] === i); return `<li><a href="#ar-${slug}-${i}"><b>Part ${i + 1}</b>${f ? ` <span lang="ar" dir="rtl">${esc(f[1].slice(0, 70))}</span>` : ''}</a></li>`; }).join('')}</ol>`}
       <p class="arb-credit">Text from the OpenITI corpus (CC BY-NC-SA 4.0). Modern editors\u2019 introductions and footnote numbers are left out; the author\u2019s words are unchanged.</p>`;
@@ -3303,8 +3306,7 @@ const arReader = {
 };
 
 
-/* Lectures: scholars explaining the books, in Arabic with English subtitles (burned into the
-   videos), played through YouTube's own embedded player. The book text sits under the video and
+/* Lectures: scholars explaining the books in Arabic, played through YouTube's own embedded player. The book text sits under the video and
    follows the lesson: from the lesson timings in lectures/<series>.json, and from places you mark
    yourself ("The shaykh is here"). Notes are kept per lesson with the video time and the place in
    the book. Everything you add stays on this phone. */
@@ -3348,11 +3350,11 @@ const lectures = {
     this.stop(); await arCatalog(); await this.syncFile(id);
     showView('library'); state.libBack = 'lectures'; $('#backBtn').hidden = false;
     const b = AR_BOOKS.find(a => a.slug === s.book) || { title: '' };
-    setTitle(s.title, s.scholar);
+    setTitle(s.title || b.title, s.scholar);
     const prog = this.prog(id), titles = this.titles(id), notes = this.notes(id), last = store.get('lecLast:' + id, 0);
     $('#library').innerHTML = `
       <div class="book-head lec-head"><b class="bh-title" lang="ar" dir="rtl">${esc(b.title)}</b><span>${esc(s.scholar)} <span lang="ar" dir="rtl">· ${esc(s.scholarAr)}</span></span>
-        <span>${s.count} lessons · Arabic with English subtitles · ${esc(s.channel)} on YouTube</span></div>
+        <span>${s.count} lessons · in Arabic · ${esc(s.channel)} on YouTube</span></div>
       <div class="pdf-get arb-actions"><a class="btn primary" href="#lec-${id}-${last || 1}">${last ? `Continue lesson ${last}` : 'Start lesson 1'}</a>
         <a class="btn" href="#ar-${s.book}">Read the book</a></div>
       <p class="lib-note">The book follows along under the video. Plays from YouTube, so it needs internet.</p>

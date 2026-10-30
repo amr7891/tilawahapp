@@ -987,3 +987,5 @@ input, textarea, select { font-size: 16px; }
 .lec-nlist li { display: flex; align-items: flex-start; gap: 6px; }
 .lec-nrow { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 14px; white-space: pre-wrap; }
 #lecNotesBody { display: grid; gap: 12px; }
+
+.lec-bh { font-family: var(--font-quran); font-size: 19px; text-transform: none; letter-spacing: 0; color: var(--accent); margin-top: 18px; }
