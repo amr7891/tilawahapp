@@ -464,6 +464,162 @@ function getTimings(timed, s) {
   return timings.get(k);
 }
 
+/* Hifz: track memorization page by page (Madinah mushaf, 604 pages) and plan murajaʿah.
+   The reader chooses how many new pages and how many review pages a day. Review picks the
+   pages that most need it: weak ones and the longest unrevised first. A recitation test of a
+   page rates it automatically. Everything is kept on this phone. */
+const hifz = {
+  QNAME: { 1: 'Weak', 2: 'Good', 3: 'Strong' },
+  data() {
+    const d = store.get('hifz', null) || {};
+    d.pages = d.pages || {}; d.days = d.days || {};
+    d.plan = Object.assign({ newPer: 1, reviewPer: 10, dir: 'fwd', start: 1 }, d.plan || {});
+    return d;
+  },
+  save(d) { store.set('hifz', d); },
+  today() { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; },
+  day(d) { const k = this.today(); d.days[k] = d.days[k] || { n: [], r: [] }; return d.days[k]; },
+  memorized(d) { return Object.keys(d.pages).filter(p => d.pages[p].s === 'mem').map(Number); },
+  set(p, st) {
+    const d = this.data();
+    if (!st) delete d.pages[p];
+    else {
+      const was = d.pages[p];
+      d.pages[p] = Object.assign({ t: Date.now(), r: [] }, was || {}, { s: st });
+      if (st === 'mem' && (!was || was.s !== 'mem')) { d.pages[p].m = Date.now(); const day = this.day(d); if (!day.n.includes(p)) day.n.push(p); }
+    }
+    if (st !== 'mem') { const day = d.days[this.today()]; if (day) day.n = day.n.filter(x => x !== p); }
+    this.save(d);
+  },
+  review(p, q) {
+    const d = this.data();
+    const pg = d.pages[p] || (d.pages[p] = { s: 'mem', t: Date.now(), r: [] });
+    pg.r = (pg.r || []).concat([[Date.now(), q]]).slice(-12);
+    const day = this.day(d); if (!day.r.includes(p)) day.r.push(p);
+    this.save(d);
+    if (state.view === 'hifz') this.render();
+  },
+  last(pg) { return pg && pg.r && pg.r.length ? pg.r[pg.r.length - 1] : null; },
+  // How much a memorized page needs review now: days since it was last revised, more for weak ones.
+  need(pg) {
+    const l = this.last(pg), since = (Date.now() - (l ? l[0] : (pg.m || pg.t || 0))) / 864e5;
+    return since * (!l ? 1.2 : l[1] === 1 ? 3 : l[1] === 2 ? 1.5 : 1);
+  },
+  // Today's plan: new pages (today's and still learning, then the next in the chosen order)
+  // and the pages most in need of review.
+  plan(d) {
+    const day = d.days[this.today()] || { n: [], r: [] };
+    const mem = this.memorized(d);
+    const review = mem.filter(p => !day.n.includes(p) && !day.r.includes(p))
+      .map(p => ({ p, n: this.need(d.pages[p]) })).sort((a, b) => b.n - a.n)
+      .slice(0, Math.max(0, d.plan.reviewPer - day.r.length)).map(x => x.p);
+    const reviewAll = day.r.concat(review);
+    const fresh = day.n.slice();
+    Object.keys(d.pages).filter(p => d.pages[p].s === 'learn').map(Number).forEach(p => { if (!fresh.includes(p)) fresh.push(p); });
+    let p = d.plan.start; const step = d.plan.dir === 'back' ? -1 : 1;
+    while (fresh.length < day.n.length + d.plan.newPer && p >= 1 && p <= 604) { if (!d.pages[p] && !fresh.includes(p)) fresh.push(p); p += step; }
+    return { fresh, review: reviewAll, day };
+  },
+  streak(d) {
+    let n = 0; const t = new Date();
+    for (let i = 0; i < 4000; i++) {
+      const k = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`, x = d.days[k];
+      if (x && (x.n.length || x.r.length)) n++; else if (!(i === 0)) break;   // today may still be ahead of you
+      t.setDate(t.getDate() - 1);
+    }
+    return n;
+  },
+  pageLabel(p) { const cs = Q.surahsOnPage(p); return `${cs.map(c => c.en).join(', ')} · Juz ${Q.juzOfPage(p)}`; },
+  ago(ts) { if (!ts) return 'not revised yet'; const dd = Math.floor((Date.now() - ts) / 864e5); return dd === 0 ? 'revised today' : dd === 1 ? 'revised yesterday' : `revised ${dd} days ago`; },
+  render() {
+    const box = $('#hifz'); if (!box) return;
+    if (!Q.meta) { box.innerHTML = '<p class="empty">Loading…</p>'; Q.load().then(() => this.render()).catch(() => {}); return; }
+    const d = this.data(), { fresh, review, day } = this.plan(d), mem = this.memorized(d);
+    const row = (p, kind) => {
+      const pg = d.pages[p], l = this.last(pg), doneToday = kind === 'new' ? !!(pg && pg.s === 'mem') : day.r.includes(p);
+      return `<li class="hz-row ${kind}${doneToday ? ' done' : ''}" data-p="${p}">
+        <a class="hz-page" href="#page-${p}"><b>Page ${p}</b><span>${esc(this.pageLabel(p))}${kind === 'rev' ? ` · ${this.ago(l && l[0])}${l ? ` · ${this.QNAME[l[1]]}` : ''}` : pg && pg.s === 'learn' ? ' · learning' : ''}</span></a>
+        <div class="hz-acts">
+          <button type="button" class="icon-btn" data-hz="test" aria-label="Test page ${p} by reciting"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+          ${kind === 'new'
+            ? `<button type="button" class="btn small${doneToday ? '' : ' primary'}" data-hz="mem">${doneToday ? 'Memorized ✓' : 'Memorized'}</button>`
+            : `<span class="hz-rate">${[1, 2, 3].map(q => `<button type="button" class="chip-btn q${q}${day.r.includes(p) && l && l[1] === q ? ' on' : ''}" data-hz="q${q}">${this.QNAME[q]}</button>`).join('')}</span>`}
+        </div></li>`;
+    };
+    const juzRows = Array.from({ length: 30 }, (_, j) => {
+      const pages = []; for (let p = 1; p <= 604; p++) if (Q.juzOfPage(p) === j + 1) pages.push(p);
+      const n = pages.filter(p => d.pages[p] && d.pages[p].s === 'mem').length;
+      return `<div class="hz-juz"><button type="button" class="hz-jl" data-juz="${j + 1}"><b>Juz ${j + 1}</b><span>${n}/${pages.length}</span></button>
+        <div class="hz-cells">${pages.map(p => { const pg = d.pages[p], l = this.last(pg); const cls = !pg ? '' : pg.s === 'learn' ? 'learn' : l && l[1] === 1 ? 'weak' : 'mem'; return `<button type="button" class="hz-c ${cls}" data-cell="${p}" aria-label="Page ${p}${cls ? ', ' + cls : ''}"></button>`; }).join('')}</div></div>`;
+    }).join('');
+    const pl = d.plan, opt = (vals, cur, fmt) => vals.map(v => `<option value="${v}"${+cur === v ? ' selected' : ''}>${fmt(v)}</option>`).join('');
+    const revTarget = Math.min(pl.reviewPer, mem.length);
+    box.innerHTML = `
+      <div class="hz-stats">
+        <div><b>${mem.length}</b><span>pages memorized</span></div>
+        <div><b>${(mem.length / 20.13).toFixed(1)}</b><span>juz</span></div>
+        <div><b>${this.streak(d)}</b><span>day streak</span></div>
+      </div>
+      <div class="hz-bar" aria-label="${(mem.length / 604 * 100).toFixed(1)}% of the Quran"><i style="width:${(mem.length / 604 * 100).toFixed(1)}%"></i></div>
+      <h2 class="lib-h">Today · new <span class="lib-h-note">${day.n.length} of ${pl.newPer} page${pl.newPer === 1 ? '' : 's'}</span></h2>
+      ${fresh.length ? `<ul class="hz-list">${fresh.map(p => row(p, 'new')).join('')}</ul>` : `<p class="lib-note">${pl.newPer ? 'Nothing new left in this direction. Change where you start below.' : 'No new pages planned. Set it in your plan below.'}</p>`}
+      <h2 class="lib-h">Today · murajaʿah <span class="lib-h-note">${day.r.length} of ${revTarget} page${revTarget === 1 ? '' : 's'}</span></h2>
+      ${review.length ? `<ul class="hz-list">${review.map(p => row(p, 'rev')).join('')}</ul>` : '<p class="lib-note">Pages you memorize come up here for review. Already know some? Mark them in the map below.</p>'}
+      <h2 class="lib-h">Your plan</h2>
+      <div class="hz-plan">
+        <label class="field"><span>New pages a day</span><select id="hzNew">${opt([0, 1, 2, 3, 4, 5, 10], pl.newPer, v => v ? `${v} page${v > 1 ? 's' : ''}` : 'None (review only)')}</select></label>
+        <label class="field"><span>Murajaʿah a day</span><select id="hzRev">${opt([0, 5, 10, 15, 20, 30, 40, 60, 100], pl.reviewPer, v => v === 20 ? '20 pages (1 juz)' : v === 40 ? '40 pages (2 juz)' : v === 60 ? '60 pages (3 juz)' : v === 100 ? '100 pages (5 juz)' : v ? `${v} pages` : 'None')}</select></label>
+        <label class="field"><span>Memorize in this order</span><select id="hzDir"><option value="fwd"${pl.dir === 'fwd' ? ' selected' : ''}>Forward (page 1 → 604)</option><option value="back"${pl.dir === 'back' ? ' selected' : ''}>Backward (Juz ʿAmma first)</option></select></label>
+        <label class="field"><span>Next new page</span><input id="hzStart" type="number" min="1" max="604" inputmode="numeric" value="${pl.start}"></label>
+      </div>
+      <h2 class="lib-h">Progress <span class="lib-h-note">tap a page: learning → memorized → clear · tap a juz to mark it all</span></h2>
+      <div class="hz-legend"><span><i class="hz-c mem"></i>Memorized</span><span><i class="hz-c weak"></i>Weak</span><span><i class="hz-c learn"></i>Learning</span><span><i class="hz-c"></i>Not yet</span></div>
+      <div class="hz-map">${juzRows}</div>`;
+  },
+  async test(p) {
+    location.hash = 'page-' + p;
+    try { const d = await Q.pageReady(p); const w = d.words[0]; setTimeout(() => rec.start(w.s, w.a, { scope: 'open', pos: w.pos, lastPage: p, hifz: p }), 700); } catch (_) {}
+  },
+  init() {
+    $('#hifz').addEventListener('click', e => {
+      const cell = e.target.closest('[data-cell]');
+      if (cell) {   // not yet → learning → memorized → not yet
+        const p = +cell.dataset.cell, d = this.data(), cur = d.pages[p] && d.pages[p].s;
+        this.set(p, !cur ? 'learn' : cur === 'learn' ? 'mem' : null);
+        toast(`Page ${p}: ${!cur ? 'learning' : cur === 'learn' ? 'memorized' : 'cleared'}`);
+        this.render(); return;
+      }
+      const jz = e.target.closest('[data-juz]');
+      if (jz) {
+        const j = +jz.dataset.juz, d = this.data(), pages = [];
+        for (let p = 1; p <= 604; p++) if (Q.juzOfPage(p) === j) pages.push(p);
+        const all = pages.every(p => d.pages[p] && d.pages[p].s === 'mem');
+        pages.forEach(p => { if (all) delete d.pages[p]; else if (!d.pages[p] || d.pages[p].s !== 'mem') d.pages[p] = { s: 'mem', t: Date.now(), m: Date.now() - 7 * 864e5, r: [] }; });
+        this.save(d); toast(all ? `Juz ${j} cleared` : `Juz ${j} marked memorized`); this.render(); return;
+      }
+      const b = e.target.closest('[data-hz]'); if (!b) return;
+      const p = +b.closest('[data-p]').dataset.p, act = b.dataset.hz;
+      if (act === 'test') { this.test(p); return; }
+      if (act === 'mem') {
+        const d = this.data(), isMem = !!(d.pages[p] && d.pages[p].s === 'mem');
+        this.set(p, isMem ? 'learn' : 'mem');
+        if (!isMem) { const d2 = this.data(); if (d2.plan.start === p) { d2.plan.start = Math.max(1, Math.min(604, p + (d2.plan.dir === 'back' ? -1 : 1))); this.save(d2); } toast(`Page ${p} memorized. It joins your murajaʿah.`); }
+        this.render(); return;
+      }
+      if (act[0] === 'q') this.review(p, +act[1]);
+    });
+    $('#hifz').addEventListener('change', e => {
+      const d = this.data(), t = e.target;
+      if (t.id === 'hzNew') d.plan.newPer = +t.value;
+      else if (t.id === 'hzRev') d.plan.reviewPer = +t.value;
+      else if (t.id === 'hzDir') { d.plan.dir = t.value; d.plan.start = t.value === 'back' ? 582 : 1; }
+      else if (t.id === 'hzStart') d.plan.start = Math.max(1, Math.min(604, +t.value || 1));
+      else return;
+      this.save(d); this.render();
+    });
+  },
+};
+
 /* Keep the screen on the whole time the mushaf, the text view or a book is open, and while a
    recitation plays or you recite. The lock is let go as soon as you leave reading or the app
    goes to the background, and nothing runs on a timer; downloads wait while the battery is
@@ -632,6 +788,7 @@ const offline = {
 };
 window.addEventListener('online', () => setTimeout(() => offline.run(), 2000));
 awake.init();
+hifz.init();
 setTimeout(() => offline.run(), 15000);   // after the app has settled
 
 function applySettings() {
@@ -759,7 +916,7 @@ function showView(name) {
   // Recitation keeps playing on every screen (a small player shows); the mic stops.
   if (state.view !== name) rec.stop(false);
   state.view = name;
-  ['list', 'surah', 'library', 'qibla', 'saved'].forEach(v => { $('#view-' + v).hidden = v !== name; });
+  ['list', 'surah', 'library', 'qibla', 'saved', 'hifz'].forEach(v => { $('#view-' + v).hidden = v !== name; });
   $('#reader').hidden = name !== 'mushaf';
   $('#pdfReader').hidden = name !== 'pdf';
   if (name !== 'pdf') pdfReader.close();
@@ -772,6 +929,7 @@ function showView(name) {
   if (name !== 'mushaf' && name !== 'surah') resetWordEls();
   if (name === 'list') { setTitle('Quran', 'Madinah Mushaf · 114 surahs'); renderContinue(); renderSavedHome(); install.card(); }
   if (name === 'saved') { setTitle('Saved', 'Bookmarks, highlights and notes'); saved.render(); }
+  if (name === 'hifz') { setTitle('Hifz', 'Memorization and murajaʿah'); hifz.render(); }
   if (name === 'qibla') { setTitle('Qibla', 'Direction of the Kaaba'); qibla.init(); }
   updateControls();
 }
@@ -809,6 +967,7 @@ async function route() {
   if ((m = h.match(/^book-([a-z0-9-]+)$/))) { openBook(m[1]); return; }
   if ((m = h.match(/^read-([a-z0-9-]+?)-(\d+)(?:-p(\d+))?(?:-n(\d+))?$/))) { pdfReader.open(m[1], +m[2], { page: m[3] ? +m[3] : null, note: m[4] ? +m[4] : null }); return; }
   if (h === 'saved') { showView('saved'); scrollTop(); return; }
+  if (h === 'hifz') { showView('hifz'); scrollTop(); return; }
   if (h === 'library') { openLibrary(); scrollTop(); return; }
   if (h === 'qibla') showView('qibla');
   else showView('list');
@@ -1614,6 +1773,7 @@ const rec = {
     this.fromPos = opts.pos || 1;
     this.auto = false; this.skip = 0; this.startedAt = Date.now();
     this.onDone = opts.onDone || null;
+    this.lastPage = opts.lastPage || null; this.hifz = opts.hifz || null;   // a hifz test: just this page
     this.expected = []; this.ids = new Set(); this.status = new Map();
     this.carried = this.fin = this.interim = '';
     this.announced = new Set(); this.curKey = ''; this.nextId = null; this.lastPos = 0;
@@ -1637,7 +1797,7 @@ const rec = {
     if (!window.isSecureContext) { toast('Open the app over https to use the microphone.', 'bad'); return; }
     if (this.active) this.stop(false);
     player.stop();
-    this.auto = true; this.skip = 0; this.scope = 'open'; this.onDone = null; this.startedAt = Date.now();
+    this.auto = true; this.skip = 0; this.scope = 'open'; this.onDone = null; this.startedAt = Date.now(); this.lastPage = null; this.hifz = null;
     this.expected = []; this.ids = new Set(); this.status = new Map();
     this.carried = this.fin = this.interim = '';
     this.announced = new Set(); this.curKey = ''; this.nextId = null; this.lastPos = 0; this.done = false; this.feeding = null;
@@ -1699,6 +1859,7 @@ const rec = {
     this.feeding = (async () => {
       const target = this.expected.length + want;
       while (!this.done && this.expected.length < target && this.nextPage <= 604) {
+        if (this.lastPage && this.nextPage > this.lastPage) { this.done = true; break; }
         const d = await Q.pageReady(this.nextPage++);
         for (const w of d.words) {
           const k = this.inScope(w);
@@ -1904,6 +2065,13 @@ function showSummaryFor(res) {
   const taj = mistakes.filter(m => m.s === 'tajweed').length;
   const skip = mistakes.filter(m => m.s === 'skip').reduce((t, m) => t + m.n, 0);
   const body = $('#summaryBody');
+  // A hifz test: log the review of this page, rated by how it went.
+  let hifzNote = '';
+  if (rec.hifz && attempted.length) {
+    const q = wrong + skip === 0 ? (taj <= 2 ? 3 : 2) : wrong + skip <= 3 ? 2 : 1;
+    hifz.review(rec.hifz, q);
+    hifzNote = `<p class="hifz-logged">Saved to Hifz: page ${rec.hifz} · ${hifz.QNAME[q]}</p>`;
+  }
   if (!attempted.length) {
     body.innerHTML = '<p>No recitation was heard. Check that the microphone is allowed, then tap the mic and start reciting.</p>';
   } else {
@@ -1932,6 +2100,7 @@ function showSummaryFor(res) {
       </div>`;
   }
   if (rec.phon) body.insertAdjacentHTML('beforeend', `<p class="rec-save">Marked something wrongly? This recitation is kept on your phone (Settings → Your recitations). <button type="button" class="linkish" data-save-rec>Share it</button> to send it in.</p>`);
+  if (hifzNote) body.insertAdjacentHTML('afterbegin', hifzNote);
   $('#summarySheet').showModal();
 }
 
