@@ -3316,11 +3316,12 @@ const lectures = {
   },
   async series(id) { return (await this.catalog()).find(s => s.id === id) || null; },
   forBook(slug) { return (this.list || []).filter(s => s.book === slug); },
+  count(s) { const f = this.sync[s.id]; return f && f.lessons ? f.lessons.length : s.count; },
   async syncFile(id) {
     if (!(id in this.sync)) { try { const r = await fetch(`lectures/${id}.json`); this.sync[id] = r.ok ? await r.json() : null; } catch (_) { this.sync[id] = null; } }
     return this.sync[id];
   },
-  ids(id) { return store.get('lecIds:' + id, []); },
+  ids(id) { const f = this.sync[id]; return f && f.lessons ? f.lessons.map(l => l.v) : store.get('lecIds:' + id, []); },
   titles(id) { return store.get('lecTitles:' + id, {}); },
   prog(id) { return store.get('lecProg:' + id, {}); },
   notes(id) { return store.get('lecNotes:' + id, []); },
@@ -3329,7 +3330,7 @@ const lectures = {
   // timings and the places you marked), else where the lesson before it ended, else the start.
   points(s, n) {
     const v = this.ids(s.id)[n - 1], f = this.sync[s.id], own = v ? store.get('lecSync:' + v, []) : [];
-    const built = v && f && f.videos && f.videos[v] ? f.videos[v].sync || [] : [];
+    const built = f && f.lessons ? ((f.lessons[n - 1] || {}).sync || []) : v && f && f.videos && f.videos[v] ? f.videos[v].sync || [] : [];
     return built.map(x => x.concat('b')).concat(own.map(x => x.concat('u'))).sort((a, b) => a[0] - b[0]);
   },
   startOf(s, n) {
@@ -3424,31 +3425,39 @@ const lectures = {
   async load(s, n) {
     let YT; try { YT = await this.api(); } catch (_) { return; }
     if (!this.cur || this.cur.s !== s || !document.getElementById('lecPlayer')) return;
-    const resume = (this.prog(s.id)[n] || [0, 0]);
-    this.player = new YT.Player('lecPlayer', {
+    const resume = (this.prog(s.id)[n] || [0, 0]), start = resume[1] && resume[0] / resume[1] < 0.95 ? Math.floor(resume[0]) : 0;
+    // Each lesson by its own video when the lessons are listed (a playlist's order can differ).
+    const vid = this.ids(s.id)[n - 1], f = this.sync[s.id], byId = !!(f && f.lessons && vid);
+    this.byId = byId;
+    this.player = new YT.Player('lecPlayer', Object.assign({
       host: 'https://www.youtube-nocookie.com', width: '100%', height: '100%',
-      playerVars: { listType: 'playlist', list: s.playlist, index: n - 1, playsinline: 1, rel: 0, start: resume[1] && resume[0] / resume[1] < 0.95 ? Math.floor(resume[0]) : 0 },
+      playerVars: Object.assign({ playsinline: 1, rel: 0, start, autoplay: this.autoNext ? 1 : 0 }, byId ? {} : { listType: 'playlist', list: s.playlist, index: n - 1 }),
       events: {
         onReady: () => this.ready(),
         onStateChange: e => this.state(e.data),
       },
-    });
+    }, byId ? { videoId: vid } : {}));
+    this.autoNext = false;
   },
   ready() {
     const c = this.cur, pl = this.player; if (!c || !pl) return;
-    try { const ids = pl.getPlaylist && pl.getPlaylist(); if (ids && ids.length) { store.set('lecIds:' + c.s.id, ids); this.hint(); const [p, b] = this.startOf(c.s, c.n); this.show(p, b, true); } } catch (_) {}
+    try { const ids = !this.byId && pl.getPlaylist && pl.getPlaylist(); if (ids && ids.length) { store.set('lecIds:' + c.s.id, ids); this.hint(); const [p, b] = this.startOf(c.s, c.n); this.show(p, b, true); } } catch (_) {}
     const sk = store.get('lecSeek', null);
     if (sk && sk[0] === c.s.id && sk[1] === c.n) { store.set('lecSeek', null); this.seek(sk[2]); }
   },
   state(st) {
     const c = this.cur, pl = this.player; if (!c || !pl) return;
     // The playlist moved on to the next lesson by itself.
-    try { const i = pl.getPlaylistIndex(); if (i >= 0 && i + 1 !== c.n) { this.save(); c.n = i + 1; store.set('lecLast:' + c.s.id, c.n); history.replaceState(null, '', '#lec-' + c.s.id + '-' + c.n); navStack[navStack.length - 1] = 'lec-' + c.s.id + '-' + c.n; setTitle(`Lesson ${c.n} of ${c.s.count}`, c.s.scholar); this.hint(); } } catch (_) {}
+    try { const i = this.byId ? -1 : pl.getPlaylistIndex(); if (i >= 0 && i + 1 !== c.n) { this.save(); c.n = i + 1; store.set('lecLast:' + c.s.id, c.n); history.replaceState(null, '', '#lec-' + c.s.id + '-' + c.n); navStack[navStack.length - 1] = 'lec-' + c.s.id + '-' + c.n; setTitle(`Lesson ${c.n} of ${c.s.count}`, c.s.scholar); this.hint(); } } catch (_) {}
     try { const d = pl.getVideoData && pl.getVideoData(); if (d && d.title) { const t = this.titles(c.s.id); if (t[c.n] !== d.title) { t[c.n] = d.title; store.set('lecTitles:' + c.s.id, t); } } } catch (_) {}
     clearInterval(this.timer); this.timer = null;
     if (st === 1) this.timer = setInterval(() => this.tick(), 1000);   // only while it plays
     else this.save();
-    if (st === 0) { const [p, b] = this.at(c.s, c.n, 1e9); store.set(`lecEnd:${c.s.id}:${c.n}`, [p, b]); }
+    if (st === 0) {
+      const [p, b] = this.at(c.s, c.n, 1e9); store.set(`lecEnd:${c.s.id}:${c.n}`, [p, b]);
+      // On to the next lesson.
+      if (this.byId && c.n < this.count(c.s)) { this.autoNext = true; setTimeout(() => { if (this.cur === c) location.hash = `lec-${c.s.id}-${c.n + 1}`; }, 1500); }
+    }
   },
   tick() {
     const c = this.cur, pl = this.player; if (!c || !pl || !pl.getCurrentTime) return;
