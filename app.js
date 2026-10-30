@@ -105,6 +105,8 @@ const SHELVES = [
       ['Heaven’s Door', 'Compiled from Ibn Rajab, Ibn al-Qayyim and al-Ghazali', 'Heavens Door.pdf'],
       ['Waswasah', 'By Ibn Qudamah al-Maqdisi, listed with Ibn al-Qayyim’s works', 'Waswasah.pdf'],
       ['The Biography of Imam Ibn al-Qayyim', 'By Salahud-Din Ali Abdul-Mawjud', 'The%20Biography%20Of%20Imam%20Ibn%20Al-Qayyim%20by%20Salahud-Din%20Ali%20Abdul-Mawjud.pdf'],
+      { id: 'ar-salat', title: 'The Prayer and the Ruling on Abandoning It (Kitab al-Salah)', author: 'Ibn Qayyim al-Jawziyyah', files: [], ar: 'salat', arOnly: true },
+      { id: 'ar-jala', title: 'Jalaʾ al-Afham: Sending Blessings on the Prophet ﷺ', author: 'Ibn Qayyim al-Jawziyyah', files: [], ar: 'jala', arOnly: true },
     ],
   },
   {
@@ -131,12 +133,14 @@ const SHELVES = [
       ['The Right Way', null, 'the-right-way.pdf'],
       ['Letters from Prison', null, 'Ibn Taymeeyahs Letters From Prison.pdf'],
       ['The Lofty Virtues of Ibn Taymiyyah', 'By al-Hafidh ʿUmar bin ʿAli al-Bazzar', 'TheLoftyVirtuesOfIbnTaymiyyah.pdf'],
+      { id: 'ar-tadmuriyya', title: 'Al-Risalah al-Tadmuriyyah', author: 'Shaykh al-Islam Ibn Taymiyyah', files: [], ar: 'tadmuriyya', arOnly: true },
     ],
   },
   {
     id: 'more', title: 'More books',
     items: [
       { id: 'kitab-at-tawhid', title: 'Kitab at-Tawhid', author: 'Shaykh Muhammad ibn Abdul Wahhab', files: [{ label: 'PDF', url: KM + 'Kitab-At-Tauhid-The-Book-of-Monotheism-Sh.-Muhammad-bin-Abdul-Wahhab.pdf' }] },
+      { id: 'ar-tahawiyya', title: 'Al-ʿAqidah al-Tahawiyyah', author: 'Abu Jaʿfar al-Tahawi', files: [], ar: 'tahawiyya', arOnly: true },
     ],
   },
 ];
@@ -175,7 +179,7 @@ const PUBLISHERS = [
 ];
 SHELVES.forEach(sh => sh.items.forEach(b => {
   const ar = AR_ORIGINAL[b.id];
-  if (ar) { b.ar = Array.isArray(ar) ? ar[0] : ar; b.arNote = Array.isArray(ar) ? ar[1] : ''; }
+  if (ar && !b.arOnly) { b.ar = Array.isArray(ar) ? ar[0] : ar; b.arNote = Array.isArray(ar) ? ar[1] : ''; }
   const u = (b.files[0] && b.files[0].url) || '';
   const hit = PUBLISHERS.find(([k]) => u.includes(k));
   if (hit) b.publisher = hit[1];
@@ -2878,7 +2882,7 @@ async function renderShelves() {
   const docIcon = '<svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/></svg>';
   const bookRow = b => {
     const one = b.files.length === 1;
-    const href = b.mine || (one && !b.ar) ? '#read-' + b.id + '-0' : '#book-' + b.id;
+    const href = b.arOnly ? '#ar-' + b.ar : b.mine || (one && !b.ar) ? '#read-' + b.id + '-0' : '#book-' + b.id;
     const got = b.files.filter((_, i) => have.has(`${b.id}:${i}`)).length;
     const arb = b.ar && AR_BOOKS.find(a => a.slug === b.ar);
     const find = [b.title, b.author, arb && arb.title].filter(Boolean).join(' ');

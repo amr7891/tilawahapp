@@ -33,7 +33,15 @@ BOOKS = [
   ('alam', '0749IbnCaliSirajDinBazzar.AclamCaliyya', 'الأعلام العلية في مناقب ابن تيمية', 'عمر بن علي البزار', None),
   ('tawhid', '1206IbnCabdWahhab.Tawhid', 'كتاب التوحيد', 'محمد بن عبد الوهاب', None),
   ('sira', '0774IbnKathir.SiraNabawiyya', 'السيرة النبوية', 'ابن كثير', r'^### \| ذكر أخبار العرب'),
+  ('tahawiyya', '0321Tahawi.MatnCaqida', 'العقيدة الطحاوية', 'أبو جعفر الطحاوي', None),
+  ('tadmuriyya', '0728IbnTaymiyya.RisalaTadmuriyya', 'الرسالة التدمرية', 'ابن تيمية', None),
+  ('salat', '0751IbnQayyimJawziyya.Salat', 'الصلاة وحكم تاركها', 'ابن قيم الجوزية', None),
+  ('jala', '0751IbnQayyimJawziyya.JalaAfham', 'جلاء الأفهام في فضل الصلاة والسلام على خير الأنام', 'ابن قيم الجوزية', None),
 ]
+# books whose editions number each paragraph: the numbers are the editor's, not the author's
+NUMBERED = {'tahawiyya'}
+# added later: their stray '$' markers are dropped (the older books keep their block layout unchanged)
+NEW = {'tahawiyya', 'tadmuriyya', 'salat', 'jala'}
 CHUNK = 60000
 def clean(t):
     t = re.sub(r'PageV\d+P\d+', '', t)
@@ -64,6 +72,8 @@ for slug, stem, title, author, cut in BOOKS:
             txt = clean(l[2:])
             if txt and blocks: blocks[-1][1] = (blocks[-1][1] + ' ' + txt).strip()
             elif txt: blocks.append([0, txt])
+    if slug in NUMBERED: blocks = [[b[0], re.sub(r'^\$?\s*\d{1,3}\s+', '', b[1])] for b in blocks]
+    if slug in NEW: blocks = [[b[0], re.sub(r'^\$\s*', '', b[1])] for b in blocks]
     blocks = [b for b in blocks if b[1] not in ('...', '…', '.')]
     # an edition's own index (فهرس) at the end is not the author's
     for i in range(len(blocks) - 1, max(-1, len(blocks) - 400), -1):
