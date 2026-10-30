@@ -458,5 +458,49 @@
   "playlist": "",
   "count": 4,
   "auto": 1
+ },
+ {
+  "id": "tahawiyya-muhammad-hisham-al-tahiri",
+  "book": "tahawiyya",
+  "title": "",
+  "scholar": "Shaykh Muḥammad Hishām al-Ṭāhirī",
+  "scholarAr": "الشيخ محمد هشام الطاهري",
+  "channel": "جمع الدروس العلمية وترتيبها في قوائم",
+  "playlist": "",
+  "count": 35,
+  "auto": 1
+ },
+ {
+  "id": "salat-muhammad-hisham-al-tahiri",
+  "book": "salat",
+  "title": "",
+  "scholar": "Shaykh Muḥammad Hishām al-Ṭāhirī",
+  "scholarAr": "الشيخ محمد هشام الطاهري",
+  "channel": "دروس الشيخ محمد هشام طاهري",
+  "playlist": "",
+  "count": 14,
+  "auto": 1
+ },
+ {
+  "id": "jala-muhammad-hisham-al-tahiri",
+  "book": "jala",
+  "title": "",
+  "scholar": "Shaykh Muḥammad Hishām al-Ṭāhirī",
+  "scholarAr": "الشيخ محمد هشام الطاهري",
+  "channel": "قناة د. محمد هشام الطاهري",
+  "playlist": "",
+  "count": 8,
+  "auto": 1
+ },
+ {
+  "id": "tadmuriyya-muhammad-aman-al-jami",
+  "book": "tadmuriyya",
+  "title": "",
+  "scholar": "Shaykh Muḥammad Amān al-Jāmī",
+  "scholarAr": "الشيخ محمد أمان الجامي",
+  "channel": "فضيلة الشيخ محمد أمان الجامي",
+  "playlist": "",
+  "count": 44,
+  "auto": 1
  }
 ]
