@@ -464,6 +464,39 @@ function getTimings(timed, s) {
   return timings.get(k);
 }
 
+/* Keep the screen on the whole time the mushaf, the text view or a book is open, and while a
+   recitation plays or you recite. The lock is let go as soon as you leave reading or the app
+   goes to the background, and nothing runs on a timer; downloads wait while the battery is
+   low and the phone isn't charging. */
+const awake = {
+  lock: null, battery: null,
+  lowBattery() { const b = this.battery; return !!(b && !b.charging && b.level <= 0.2); },
+  reading() { return ['mushaf', 'surah', 'pdf'].includes(state.view) || (state.view === 'library' && !!document.querySelector('#library .arb')); },
+  wanted() {
+    if (document.visibilityState !== 'visible') return false;
+    if ((player.playing) || rec.active) return true;               // listening or reciting
+    return settings.keepAwake !== false && this.reading();
+  },
+  async check() {
+    if (this.busy) { this.again = true; return; }
+    this.busy = true;
+    try {
+      const want = this.wanted();
+      if (want && !this.lock && navigator.wakeLock) {
+        try { const l = await navigator.wakeLock.request('screen'); this.lock = l; l.addEventListener('release', () => { if (this.lock === l) this.lock = null; }); } catch (_) { this.lock = null; }
+      } else if (!want && this.lock) { const l = this.lock; this.lock = null; try { await l.release(); } catch (_) {} }
+    } finally { this.busy = false; }
+    if (this.again) { this.again = false; this.check(); }
+  },
+  touch() { if (!this.lock && this.wanted()) this.check(); },
+  init() {
+    // The phone drops the lock on its own sometimes (e.g. after the app was in the background): take it again on the next touch.
+    document.addEventListener('pointerdown', () => this.touch(), { passive: true, capture: true });
+    document.addEventListener('visibilitychange', () => this.check());
+    if (navigator.getBattery) navigator.getBattery().then(b => { this.battery = b; const f = () => this.check(); b.addEventListener('levelchange', f); b.addEventListener('chargingchange', f); }).catch(() => {});
+  },
+};
+
 /* Keep everything on this phone: when online, quietly download all the app's data (Quran,
    tajweed fonts, translation, tafsir, hadith, Arabic books, speech model) and the whole Quran
    in the chosen reciter's voice, so all of it works offline. Already-saved files are skipped. */
@@ -510,6 +543,7 @@ const offline = {
     const c = navigator.connection;
     if (!navigator.onLine) return false;
     if (c && c.saveData) return false;                                     // the phone's data saver
+    if (awake.lowBattery()) return false;                                  // low battery, not charging
     if (this.on() && c && c.type === 'cellular' && !settings.offlineCellular && this.stat.app[0] >= this.stat.app[1]) return false;
     return true;
   },
@@ -565,7 +599,7 @@ const offline = {
     return urls;
   },
   async run() {
-    if (this.running || !navigator.onLine || (navigator.connection && navigator.connection.saveData)) return;
+    if (this.running || !navigator.onLine || (navigator.connection && navigator.connection.saveData) || awake.lowBattery()) return;
     this.running = true; this.stopReq = false; this.full = false; this.misses = 0; this.render();
     try {
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
@@ -597,6 +631,7 @@ const offline = {
   },
 };
 window.addEventListener('online', () => setTimeout(() => offline.run(), 2000));
+awake.init();
 setTimeout(() => offline.run(), 15000);   // after the app has settled
 
 function applySettings() {
@@ -2218,6 +2253,7 @@ function renderSavedHome() {
 /* ------------------------------------------------------------------ */
 
 function updateControls() {
+  awake.check();
   const playSvg = player.playing ? '<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>' : '<path d="M7 5l12 7-12 7z"/>';
   document.querySelectorAll('.play-icon').forEach(svg => { svg.innerHTML = playSvg; });
   ['#playBtn', '#mPlay'].forEach(id => $(id).setAttribute('aria-label', player.playing ? 'Pause recitation' : 'Play recitation'));
@@ -2757,6 +2793,7 @@ const arReader = {
     // Remember the place as the reader scrolls.
     this.els = [...box.querySelectorAll('.arb [data-b]')];
     box.querySelector('.arb').addEventListener('click', e => { const el = e.target.closest('[data-b]'); if (el) this.select(el); });
+    awake.check();
     // Keep the next part ready for reading offline.
     if (part < idx.parts - 1) fetch(`arbooks/${slug}/p${part + 1}.json`).catch(() => {});
   },
@@ -3338,6 +3375,7 @@ function initSettingsSheet() {
     $('#setHide').checked = settings.hide;
     $('#setListenRepeat').checked = settings.listenRepeat;
     $('#setPopups').checked = settings.mistakePopups;
+    $('#setAwake').checked = settings.keepAwake !== false;
     $('#setOffline').checked = offline.on(); $('#setOfflineCell').checked = !!settings.offlineCellular; offline.render();
     $('#setLevel').value = settings.checkLevel || 'tajweed';
     $('#setStrict').value = settings.strict || 'balanced';
@@ -3372,6 +3410,7 @@ function initSettingsSheet() {
   $('#setHide').addEventListener('change', e => { settings.hide = e.target.checked; saveSettings(); paintWords(); });
   $('#setListenRepeat').addEventListener('change', e => { settings.listenRepeat = e.target.checked; saveSettings(); });
   $('#setPopups').addEventListener('change', e => { settings.mistakePopups = e.target.checked; saveSettings(); });
+  $('#setAwake').addEventListener('change', e => { settings.keepAwake = e.target.checked; saveSettings(); awake.check(); });
   $('#setOffline').addEventListener('change', e => { settings.offlineAll = e.target.checked; saveSettings(); if (e.target.checked) offline.restart(); else offline.stopReq = true; offline.render(); });
   $('#setOfflineCell').addEventListener('change', e => { settings.offlineCellular = e.target.checked; saveSettings(); offline.restart(); });
   $('#offlineAllAudio').addEventListener('click', e => { e.preventDefault(); toast(`Downloading every surah for ${reciterName()}…`); offline.downloadAll().then(() => offline.render()); });
