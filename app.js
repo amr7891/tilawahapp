@@ -500,7 +500,6 @@ const hifz = {
     pg.r = (pg.r || []).concat([[Date.now(), q]]).slice(-12);
     const day = this.day(d); if (!day.r.includes(p)) day.r.push(p);
     this.save(d);
-    if (state.view === 'hifz') this.render();
   },
   last(pg) { return pg && pg.r && pg.r.length ? pg.r[pg.r.length - 1] : null; },
   // How much a memorized page needs review now: days since it was last revised, more for weak ones.
@@ -523,23 +522,28 @@ const hifz = {
   plan(d) {
     const day = d.days[this.today()] || { n: [], r: [] };
     const memSet = new Set(this.memorized(d));
-    let review = [];
+    let review = [], portion = -1, custom = false;
     if (memSet.size) {
-      const scored = this.portions(d.plan.reviewJuz).map(pages => {
+      const scored = this.portions(d.plan.reviewJuz).map((pages, i) => {
         const mine = pages.filter(p => memSet.has(p) && !day.n.includes(p));
-        return { mine, score: mine.reduce((t, p) => t + this.need(d.pages[p]), 0) / Math.max(1, pages.length) };
+        return { i, mine, score: mine.reduce((t, p) => t + this.need(d.pages[p]), 0) / Math.max(1, pages.length) };
       }).filter(x => x.mine.length).sort((a, b) => b.score - a.score);
       // Keep today's portion steady once started: the one holding pages already revised today.
       const started = scored.find(x => x.mine.some(p => day.r.includes(p)));
-      review = (started || scored[0] || { mine: [] }).mine;
+      let pick = started || scored[0] || { mine: [], i: -1 };
+      // You chose today's murajaʿah yourself: a portion, or your own run of pages.
+      const ch = day.pick;
+      if (ch && ch.from) { const mine = []; for (let p = ch.from; p <= ch.to; p++) if (memSet.has(p) && !day.n.includes(p)) mine.push(p); if (mine.length) pick = { mine, i: -1, custom: true }; }
+      else if (ch && ch.size === d.plan.reviewJuz) { const x = scored.find(y => y.i === ch.i); if (x) pick = x; }
+      review = pick.mine; portion = pick.i; custom = !!pick.custom;
     }
     day.r.forEach(p => { if (!review.includes(p)) review.push(p); });
     const fresh = day.n.slice();
     Object.keys(d.pages).filter(p => d.pages[p].s === 'learn').map(Number).forEach(p => { if (!fresh.includes(p)) fresh.push(p); });
     const want = Math.ceil(d.plan.newPer);
     let p = d.plan.start; const step = d.plan.dir === 'back' ? -1 : 1;
-    while (fresh.length < day.n.length + want && p >= 1 && p <= 604) { if (!d.pages[p] && !fresh.includes(p)) fresh.push(p); p += step; }
-    return { fresh, review, day };
+    while (fresh.length < want && p >= 1 && p <= 604) { if (!d.pages[p] && !fresh.includes(p)) fresh.push(p); p += step; }
+    return { fresh, review, day, portion, custom };
   },
   streak(d) {
     let n = 0; const t = new Date();
@@ -552,51 +556,89 @@ const hifz = {
   },
   pageLabel(p) { const cs = Q.surahsOnPage(p); return `${cs.map(c => c.en).join(', ')} · Juz ${Q.juzOfPage(p)}`; },
   ago(ts) { if (!ts) return 'not revised yet'; const dd = Math.floor((Date.now() - ts) / 864e5); return dd === 0 ? 'revised today' : dd === 1 ? 'revised yesterday' : `revised ${dd} days ago`; },
+  // "1–11, 14" from a list of pages.
+  ranges(ps) {
+    const a = ps.slice().sort((x, y) => x - y), out = [];
+    for (let i = 0; i < a.length; i++) { let j = i; while (j + 1 < a.length && a[j + 1] === a[j] + 1) j++; out.push(i === j ? `${a[i]}` : `${a[i]}–${a[j]}`); i = j; }
+    return out.join(', ');
+  },
+  pagesText(ps) { return `${ps.length === 1 ? 'Page' : 'Pages'} ${this.ranges(ps)}`; },
+  portionName(size, i) {
+    if (i == null || i < 0) return this.JUZ_NAME[size];
+    if (size === 2) return `Juz ${2 * i + 1}–${2 * i + 2}`;
+    if (size === 1) return `Juz ${i + 1}`;
+    if (size === 0.5) return `Juz ${Math.floor(i / 2) + 1}, ${i % 2 ? 'second' : 'first'} half`;
+    return `Juz ${Math.floor(i / 4) + 1}, ${['first', 'second', 'third', 'fourth'][i % 4]} quarter`;
+  },
   render() {
     const box = $('#hifz'); if (!box) return;
     if (!Q.meta) { box.innerHTML = '<p class="empty">Loading…</p>'; Q.load().then(() => this.render()).catch(() => {}); return; }
-    const d = this.data(), { fresh, review, day } = this.plan(d), mem = this.memorized(d);
-    const row = (p, kind) => {
-      const pg = d.pages[p], l = this.last(pg), doneToday = kind === 'new' ? !!(pg && pg.s === 'mem') : day.r.includes(p);
-      const half = kind === 'new' && d.plan.newPer === 0.5 && !(pg && pg.s === 'mem') ? (pg && pg.h ? 'second half' : 'first half') : '';
-      return `<li class="hz-row ${kind}${doneToday ? ' done' : ''}" data-p="${p}">
-        <a class="hz-page" href="#page-${p}"><b>Page ${p}${half ? ` · ${half}` : ''}</b><span>${esc(this.pageLabel(p))}${kind === 'rev' ? ` · ${this.ago(l && l[0])}${l ? ` · ${this.QNAME[l[1]]}` : ''}` : pg && pg.s === 'learn' ? ' · learning' : ''}</span></a>
-        <div class="hz-acts">
-          <button type="button" class="icon-btn" data-hz="test" aria-label="Test page ${p} by reciting"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-          ${kind === 'new'
-            ? `<button type="button" class="btn small${doneToday ? '' : ' primary'}" data-hz="mem">${doneToday ? 'Memorized ✓' : half ? 'Done' : 'Memorized'}</button>`
-            : `<span class="hz-rate">${[1, 2, 3].map(q => `<button type="button" class="chip-btn q${q}${day.r.includes(p) && l && l[1] === q ? ' on' : ''}" data-hz="q${q}">${this.QNAME[q]}</button>`).join('')}</span>`}
-        </div></li>`;
-    };
+    const d = this.data(), { fresh, review, day, portion, custom } = this.plan(d), mem = this.memorized(d), pl = d.plan;
+    const isMem = p => !!(d.pages[p] && d.pages[p].s === 'mem');
+    const mic = '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+    const tick = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    const streak = this.streak(d);
+
+    // New memorization: one card; folds to a single line once today's is done.
+    let newCard;
+    const todo = fresh.filter(p => !isMem(p)), doneNew = day.n.slice();
+    if (!todo.length && doneNew.length) newCard = `<div class="hz-done">${tick}<span><b>New</b> · ${this.pagesText(doneNew)} memorized</span><button type="button" class="hz-link" data-hz="undo-new">Undo</button></div>`;
+    else if (!todo.length) newCard = `<div class="hz-done muted"><span><b>New</b> · nothing left in this direction. Change where you start in Plan.</span></div>`;
+    else {
+      const half = pl.newPer === 0.5 ? (d.pages[todo[0]] && d.pages[todo[0]].h ? 'second half' : 'first half') : '';
+      const show = half ? [todo[0]] : fresh;
+      newCard = `<section class="hz-card">
+        <div class="hz-k">New</div>
+        <a class="hz-main" href="#page-${show[0]}"><b>${this.pagesText(show)}${half ? ` · ${half}` : ''}</b><span>${esc(Q.surahsOnPage(show[0]).map(c => c.en).join(', '))}</span></a>
+        ${show.length > 1 ? `<div class="hz-pills">${show.map(p => `<button type="button" class="hz-pill${isMem(p) ? ' on' : ''}" data-hz="pg" data-p="${p}">${isMem(p) ? tick : ''}${p}</button>`).join('')}</div>` : ''}
+        <div class="hz-cta"><button type="button" class="icon-btn" data-hz="test-new" aria-label="Recite it to check">${mic}</button>
+          <button type="button" class="btn primary" data-hz="mem">${half ? 'Done' : 'Memorized'}</button></div>
+      </section>`;
+    }
+
+    // Murajaʿah: today's portion as one card, rated once.
+    let revCard;
+    const left = review.filter(p => !day.r.includes(p)), pname = custom ? this.pagesText(review) : this.portionName(pl.reviewJuz, portion);
+    if (!review.length) revCard = `<div class="hz-done muted"><span><b>Murajaʿah</b> · starts once you've memorized some pages.</span></div>`;
+    else if (!left.length) { const l = this.last(d.pages[review[0]]); revCard = `<div class="hz-done">${tick}<span><b>Murajaʿah</b> · ${esc(pname)}${l ? ` · ${this.QNAME[l[1]]}` : ''}</span><button type="button" class="hz-link" data-hz="pick">More</button><button type="button" class="hz-link" data-hz="undo-rev">Undo</button></div>`; }
+    else {
+      const oldest = Math.min(...left.map(p => { const l = this.last(d.pages[p]); return l ? l[0] : 0; }));
+      revCard = `<section class="hz-card">
+        <div class="hz-k">Murajaʿah<button type="button" class="hz-link" data-hz="pick">Choose</button></div>
+        <a class="hz-main" href="#page-${left[0]}"><b>${esc(pname)}</b><span>${custom ? `${left.length} page${left.length === 1 ? '' : 's'}${left.length < review.length ? ' left' : ''}` : this.pagesText(left)} · ${oldest ? this.ago(oldest) : 'not revised yet'}</span></a>
+        <div class="hz-cta"><button type="button" class="icon-btn" data-hz="test-rev" aria-label="Recite it to check">${mic}</button>
+          <span class="hz-rate">${[1, 2, 3].map(q => `<button type="button" class="chip-btn q${q}" data-hz="q${q}">${this.QNAME[q]}</button>`).join('')}</span></div>
+      </section>`;
+    }
+
     const juzRows = Array.from({ length: 30 }, (_, j) => {
-      const pages = []; for (let p = 1; p <= 604; p++) if (Q.juzOfPage(p) === j + 1) pages.push(p);
-      const n = pages.filter(p => d.pages[p] && d.pages[p].s === 'mem').length;
+      const pages = this.juzPages(j + 1), n = pages.filter(isMem).length;
       return `<div class="hz-juz"><button type="button" class="hz-jl" data-juz="${j + 1}"><b>Juz ${j + 1}</b><span>${n}/${pages.length}</span></button>
         <div class="hz-cells">${pages.map(p => { const pg = d.pages[p], l = this.last(pg); const cls = !pg ? '' : pg.s === 'learn' ? 'learn' : l && l[1] === 1 ? 'weak' : 'mem'; return `<button type="button" class="hz-c ${cls}" data-cell="${p}" aria-label="Page ${p}${cls ? ', ' + cls : ''}"></button>`; }).join('')}</div></div>`;
     }).join('');
-    const pl = d.plan, opt = (vals, cur, fmt) => vals.map(v => `<option value="${v}"${+cur === v ? ' selected' : ''}>${fmt(v)}</option>`).join('');
+    const opt = (vals, cur, fmt) => vals.map(v => `<option value="${v}"${+cur === v ? ' selected' : ''}>${fmt(v)}</option>`).join('');
+    const pct = (mem.length / 604 * 100).toFixed(1);
+    const chev = '<svg class="hz-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
     box.innerHTML = `
-      <div class="hz-stats">
-        <div><b>${mem.length}</b><span>pages memorized</span></div>
-        <div><b>${(mem.length / 20.13).toFixed(1)}</b><span>juz</span></div>
-        <div><b>${this.streak(d)}</b><span>day streak</span></div>
+      <div class="hz-top">
+        <div class="hz-num"><b>${mem.length}</b><span>of 604 pages${mem.length ? ` · ${(mem.length / 20.13).toFixed(1)} juz` : ''}${streak > 1 ? ` · ${streak}-day streak` : ''}</span></div>
+        <div class="hz-bar" aria-label="${pct}% of the Quran"><i style="width:${pct}%"></i></div>
       </div>
-      <div class="hz-bar" aria-label="${(mem.length / 604 * 100).toFixed(1)}% of the Quran"><i style="width:${(mem.length / 604 * 100).toFixed(1)}%"></i></div>
-      <button type="button" class="btn hz-log" data-hz-log><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>${mem.length ? 'Log more of what you know' : 'Log what you already know'}</button>
-      <h2 class="lib-h">Today · new <span class="lib-h-note">${pl.newPer === 0.5 ? `${(day.h || 0) + day.n.length ? 'done' : 'half a page'}` : `${day.n.length} of ${pl.newPer} page${pl.newPer === 1 ? '' : 's'}`}</span></h2>
-      ${fresh.length ? `<ul class="hz-list">${fresh.map(p => row(p, 'new')).join('')}</ul>` : `<p class="lib-note">${pl.newPer ? 'Nothing new left in this direction. Change where you start below.' : 'No new pages planned. Set it in your plan below.'}</p>`}
-      <h2 class="lib-h">Today · murajaʿah <span class="lib-h-note">${review.length ? `${this.JUZ_NAME[pl.reviewJuz]} · ${day.r.length} of ${review.length} pages` : this.JUZ_NAME[pl.reviewJuz]}</span></h2>
-      ${review.length ? `<ul class="hz-list">${review.map(p => row(p, 'rev')).join('')}</ul>` : '<p class="lib-note">Pages you memorize come up here for review. Already know some? Log them with the button above.</p>'}
-      <h2 class="lib-h">Your plan</h2>
-      <div class="hz-plan">
-        <label class="field"><span>New memorization a day</span><select id="hzNew">${opt([0.5, 1, 2], pl.newPer, v => v === 0.5 ? 'Half a page' : v === 1 ? '1 page' : '2 pages')}</select></label>
-        <label class="field"><span>Murajaʿah a day</span><select id="hzRev">${opt([0.25, 0.5, 1, 2], pl.reviewJuz, v => this.JUZ_NAME[v])}</select></label>
-        <label class="field"><span>Memorize in this order</span><select id="hzDir"><option value="fwd"${pl.dir === 'fwd' ? ' selected' : ''}>Forward (page 1 → 604)</option><option value="back"${pl.dir === 'back' ? ' selected' : ''}>Backward (Juz ʿAmma first)</option></select></label>
-        <label class="field"><span>Next new page</span><input id="hzStart" type="number" min="1" max="604" inputmode="numeric" value="${pl.start}"></label>
-      </div>
-      <details class="hz-more"${store.get('hzMapOpen', false) ? ' open' : ''}><summary><b>Page map</b><span>every page at a glance · tap one to change it</span></summary>
-        <div class="hz-legend"><span><i class="hz-c mem"></i>Memorized</span><span><i class="hz-c weak"></i>Weak</span><span><i class="hz-c learn"></i>Learning</span><span><i class="hz-c"></i>Not yet</span></div>
-        <div class="hz-map">${juzRows}</div></details>`;
+      <h2 class="lib-h">Today</h2>
+      <div class="hz-today">${newCard}${revCard}</div>
+      <div class="hz-menu">
+        <button type="button" class="hz-mi" data-hz-log><span><b>Log what you know</b><small>Mark surahs, juz or pages in one go</small></span>${chev}</button>
+        <details class="hz-mi-d"${store.get('hzPlanOpen', false) ? ' open' : ''} data-key="hzPlanOpen"><summary class="hz-mi"><span><b>Plan</b><small>${pl.newPer === 0.5 ? 'Half a page' : pl.newPer === 1 ? '1 page' : '2 pages'} a day · ${this.JUZ_NAME[pl.reviewJuz].toLowerCase()} murajaʿah</small></span>${chev}</summary>
+          <div class="hz-plan">
+            <label class="field"><span>New a day</span><select id="hzNew">${opt([0.5, 1, 2], pl.newPer, v => v === 0.5 ? 'Half a page' : v === 1 ? '1 page' : '2 pages')}</select></label>
+            <label class="field"><span>Murajaʿah a day</span><select id="hzRev">${opt([0.25, 0.5, 1, 2], pl.reviewJuz, v => this.JUZ_NAME[v])}</select></label>
+            <label class="field"><span>Order</span><select id="hzDir"><option value="fwd"${pl.dir === 'fwd' ? ' selected' : ''}>Page 1 → 604</option><option value="back"${pl.dir === 'back' ? ' selected' : ''}>Juz ʿAmma first</option></select></label>
+            <label class="field"><span>Next new page</span><input id="hzStart" type="number" min="1" max="604" inputmode="numeric" value="${pl.start}"></label>
+          </div></details>
+        <details class="hz-mi-d"${store.get('hzMapOpen', false) ? ' open' : ''} data-key="hzMapOpen"><summary class="hz-mi"><span><b>Page map</b><small>Every page at a glance · tap one to change it</small></span>${chev}</summary>
+          <div class="hz-legend"><span><i class="hz-c mem"></i>Memorized</span><span><i class="hz-c weak"></i>Weak</span><span><i class="hz-c learn"></i>Learning</span><span><i class="hz-c"></i>Not yet</span></div>
+          <div class="hz-map">${juzRows}</div></details>
+      </div>`;
   },
   // Logging what you already know in bulk: whole surahs, whole juz or a run of pages,
   // gathered into one selection and marked (or removed) with one tap.
@@ -616,6 +658,43 @@ const hifz = {
     return [...out].sort((x, y) => x - y);
   },
   memCount(pages, d) { return pages.filter(p => d.pages[p] && d.pages[p].s === 'mem').length; },
+  // Choosing today's murajaʿah: any portion with memorized pages, or your own page range.
+  openPick() {
+    const d = this.data(), size = d.plan.reviewJuz, { portion, custom } = this.plan(d), memSet = new Set(this.memorized(d));
+    const auto = this.plan(Object.assign({}, d, { days: Object.assign({}, d.days, { [this.today()]: Object.assign({}, d.days[this.today()] || { n: [], r: [] }, { pick: null }) }) })).portion;
+    const rows = this.portions(size).map((pages, i) => ({ i, mine: pages.filter(p => memSet.has(p)) })).filter(x => x.mine.length);
+    const lastOf = ps => Math.max(0, ...ps.map(p => { const pg = d.pages[p], l = this.last(pg); return l ? l[0] : 0; }));
+    const weak = ps => ps.filter(p => { const l = this.last(d.pages[p]); return l && l[1] === 1; }).length;
+    $('#hzPickBody').innerHTML = `<ul class="hzl-list">${rows.map(x => { const w = weak(x.mine), on = !custom && x.i === portion;
+      return `<li><button type="button" class="hzl-s${on ? ' on' : ''}" data-pi="${x.i}"><span class="hzl-t"><b>${esc(this.portionName(size, x.i))}${x.i === auto ? ' <em class="hzl-tag">Suggested</em>' : ''}</b>
+        <small>${this.pagesText(x.mine)} · ${this.ago(lastOf(x.mine))}${w ? ` · ${w} weak` : ''}</small></span><i class="hzl-tick"></i></button></li>`; }).join('')}</ul>
+      <h3 class="hzl-h">Or your own pages</h3>
+      <div class="hzl-range">
+        <label class="field"><span>From page</span><input id="hzpFrom" type="number" min="1" max="604" inputmode="numeric"${custom ? ` value="${this.data().days[this.today()].pick.from}"` : ''}></label>
+        <label class="field"><span>To page</span><input id="hzpTo" type="number" min="1" max="604" inputmode="numeric"${custom ? ` value="${this.data().days[this.today()].pick.to}"` : ''}></label>
+      </div>
+      <div class="hzl-foot"><button type="button" class="hz-link" data-pick="auto">Use the suggestion</button><span class="hzl-sum"></span><button type="button" class="btn primary" data-pick="range">Review these pages</button></div>`;
+    if (!$('#hzPickSheet').open) $('#hzPickSheet').showModal();
+  },
+  setPick(pick) {
+    const d = this.data(), day = this.day(d);
+    day.pick = pick; this.save(d);
+    $('#hzPickSheet').close(); this.render();
+  },
+  initPick() {
+    $('#hzPickSheet').addEventListener('click', e => {
+      const r = e.target.closest('[data-pi]');
+      if (r) { this.setPick({ size: this.data().plan.reviewJuz, i: +r.dataset.pi }); return; }
+      const b = e.target.closest('[data-pick]'); if (!b) return;
+      if (b.dataset.pick === 'auto') { this.setPick(null); return; }
+      let a = Math.round(+$('#hzpFrom').value), z = Math.round(+$('#hzpTo').value || a);
+      if (!(a >= 1 && a <= 604 && z >= 1 && z <= 604)) { toast('Type pages from 1 to 604.', 'warn'); return; }
+      if (a > z) [a, z] = [z, a];
+      const d = this.data(), has = this.memorized(d).some(p => p >= a && p <= z);
+      if (!has) { toast(`None of pages ${a}–${z} are logged as memorized yet.`, 'warn'); return; }
+      this.setPick({ from: a, to: z });
+    });
+  },
   openLog() {
     this.sel = { tab: store.get('hzLogTab', 'surah'), s: new Set(), j: new Set(), from: '', to: '', q: '' };
     this.renderLog();
@@ -713,13 +792,21 @@ const hifz = {
       this.fillLog();
     });
   },
-  async test(p) {
+  // Recite to check: from the first page's first word, stopping after the last page.
+  // A murajaʿah test also saves the rating for those pages.
+  async test(pages, save) {
+    const p = pages[0], last = pages[pages.length - 1];
     location.hash = 'page-' + p;
-    try { const d = await Q.pageReady(p); const w = d.words[0]; setTimeout(() => rec.start(w.s, w.a, { scope: 'open', pos: w.pos, lastPage: p, hifz: p }), 700); } catch (_) {}
+    try { const d = await Q.pageReady(p); const w = d.words[0]; setTimeout(() => rec.start(w.s, w.a, { scope: 'open', pos: w.pos, lastPage: last, hifz: save ? pages : null }), 700); } catch (_) {}
+  },
+  markNew(p) {
+    this.set(p, 'mem');
+    const d = this.data();
+    if (d.plan.start === p) { d.plan.start = Math.max(1, Math.min(604, p + (d.plan.dir === 'back' ? -1 : 1))); this.save(d); }
   },
   init() {
-    this.initLog();
-    $('#hifz').addEventListener('toggle', e => { if (e.target.matches('.hz-more')) store.set('hzMapOpen', e.target.open); }, true);
+    this.initLog(); this.initPick();
+    $('#hifz').addEventListener('toggle', e => { const k = e.target.dataset && e.target.dataset.key; if (k) store.set(k, e.target.open); }, true);
     $('#hifz').addEventListener('click', e => {
       if (e.target.closest('[data-hz-log]')) { this.openLog(); return; }
       const cell = e.target.closest('[data-cell]');
@@ -731,28 +818,42 @@ const hifz = {
       }
       const jz = e.target.closest('[data-juz]');
       if (jz) {
-        const j = +jz.dataset.juz, d = this.data(), pages = [];
-        for (let p = 1; p <= 604; p++) if (Q.juzOfPage(p) === j) pages.push(p);
+        const j = +jz.dataset.juz, d = this.data(), pages = this.juzPages(j);
         const all = pages.every(p => d.pages[p] && d.pages[p].s === 'mem');
         pages.forEach(p => { if (all) delete d.pages[p]; else if (!d.pages[p] || d.pages[p].s !== 'mem') d.pages[p] = { s: 'mem', t: Date.now(), m: Date.now() - 7 * 864e5, r: [] }; });
         this.save(d); toast(all ? `Juz ${j} cleared` : `Juz ${j} marked memorized`); this.render(); return;
       }
       const b = e.target.closest('[data-hz]'); if (!b) return;
-      const p = +b.closest('[data-p]').dataset.p, act = b.dataset.hz;
-      if (act === 'test') { this.test(p); return; }
+      const act = b.dataset.hz, d = this.data(), { fresh, review, day } = this.plan(d);
+      const isMem = p => !!(d.pages[p] && d.pages[p].s === 'mem');
+      const todo = fresh.filter(p => !isMem(p)), left = review.filter(p => !day.r.includes(p));
+      if (act === 'pick') { this.openPick(); return; }
+      if (act === 'test-new') { if (todo.length) this.test(todo, false); return; }
+      if (act === 'test-rev') { if (left.length) this.test(left, true); return; }
+      if (act === 'pg') { const p = +b.dataset.p; if (isMem(p)) this.set(p, 'learn'); else this.markNew(p); this.render(); return; }
       if (act === 'mem') {
-        const d = this.data(), isMem = !!(d.pages[p] && d.pages[p].s === 'mem');
+        if (!todo.length) return;
         // Half a page a day: the first tap is the first half; the page is memorized with the second.
-        if (!isMem && d.plan.newPer === 0.5 && !(d.pages[p] && d.pages[p].h)) {
+        if (d.plan.newPer === 0.5 && !(d.pages[todo[0]] && d.pages[todo[0]].h)) {
+          const p = todo[0];
           d.pages[p] = Object.assign({ t: Date.now(), r: [] }, d.pages[p] || {}, { s: 'learn', h: 1 });
-          const day = this.day(d); day.h = (day.h || 0) + 1; this.save(d);
-          toast(`First half of page ${p} memorized. The second half is next.`); this.render(); return;
+          this.day(d).h = 1; this.save(d);
+          toast(`First half of page ${p} done. The second half is next.`); this.render(); return;
         }
-        this.set(p, isMem ? 'learn' : 'mem');
-        if (!isMem) { const d2 = this.data(); if (d2.plan.start === p) { d2.plan.start = Math.max(1, Math.min(604, p + (d2.plan.dir === 'back' ? -1 : 1))); this.save(d2); } toast(`Page ${p} memorized. It joins your murajaʿah.`); }
-        this.render(); return;
+        const ps = d.plan.newPer === 0.5 ? [todo[0]] : todo;
+        ps.forEach(p => this.markNew(p));
+        toast(`${this.pagesText(ps)} memorized. ${ps.length === 1 ? 'It joins' : 'They join'} your murajaʿah.`); this.render(); return;
       }
-      if (act[0] === 'q') this.review(p, +act[1]);
+      if (act === 'undo-new') { day.n.slice().forEach(p => this.set(p, 'learn')); this.render(); return; }
+      if (act === 'undo-rev') {
+        const d2 = this.data(), dy = this.day(d2), t0 = new Date(); t0.setHours(0, 0, 0, 0);
+        dy.r.forEach(p => { const pg = d2.pages[p]; if (pg && pg.r) pg.r = pg.r.filter(x => x[0] < t0.getTime()); });
+        dy.r = []; this.save(d2); this.render(); return;
+      }
+      if (act[0] === 'q') {
+        const q = +act[1]; left.forEach(p => this.review(p, q));
+        toast(`Murajaʿah saved · ${this.QNAME[q]}`); this.render();
+      }
     });
     $('#hifz').addEventListener('change', e => {
       const d = this.data(), t = e.target;
@@ -2215,8 +2316,9 @@ function showSummaryFor(res) {
   let hifzNote = '';
   if (rec.hifz && attempted.length) {
     const q = wrong + skip === 0 ? (taj <= 2 ? 3 : 2) : wrong + skip <= 3 ? 2 : 1;
-    hifz.review(rec.hifz, q);
-    hifzNote = `<p class="hifz-logged">Saved to Hifz: page ${rec.hifz} · ${hifz.QNAME[q]}</p>`;
+    const ps = [].concat(rec.hifz); ps.forEach(p => hifz.review(p, q));
+    if (state.view === 'hifz') hifz.render();
+    hifzNote = `<p class="hifz-logged">Saved to Hifz: ${hifz.pagesText(ps).toLowerCase()} · ${hifz.QNAME[q]}</p>`;
   }
   if (!attempted.length) {
     body.innerHTML = '<p>No recitation was heard. Check that the microphone is allowed, then tap the mic and start reciting.</p>';
