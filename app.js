@@ -3322,7 +3322,7 @@ const lectures = {
     return this.sync[id];
   },
   ids(id) { const f = this.sync[id]; return f && f.lessons ? f.lessons.map(l => l.v) : store.get('lecIds:' + id, []); },
-  titles(id) { return store.get('lecTitles:' + id, {}); },
+  titles(id) { const f = this.sync[id], t = store.get('lecTitles:' + id, {}); if (f && f.lessons) f.lessons.forEach((l, i) => { if (l.title) t[i + 1] = l.title; }); return t; },
   prog(id) { return store.get('lecProg:' + id, {}); },
   notes(id) { return store.get('lecNotes:' + id, []); },
   fmt(t) { t = Math.max(0, Math.floor(t || 0)); const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); },
@@ -3345,7 +3345,7 @@ const lectures = {
   },
   async page(id) {   // the series: its lessons, where you are, your notes
     const s = await this.series(id); if (!s) { location.hash = 'library'; return; }
-    this.stop(); await arCatalog();
+    this.stop(); await arCatalog(); await this.syncFile(id);
     showView('library'); state.libBack = 'lectures'; $('#backBtn').hidden = false;
     const b = AR_BOOKS.find(a => a.slug === s.book) || { title: '' };
     setTitle(s.title, s.scholar);
