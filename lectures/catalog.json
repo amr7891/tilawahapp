@@ -425,5 +425,38 @@
   "playlist": "",
   "count": 41,
   "auto": 1
+ },
+ {
+  "id": "tawhid-muhammad-hisham-al-tahiri",
+  "book": "tawhid",
+  "title": "",
+  "scholar": "Shaykh Muḥammad Hishām al-Ṭāhirī",
+  "scholarAr": "الشيخ محمد هشام الطاهري",
+  "channel": "قناة د. محمد هشام الطاهري",
+  "playlist": "",
+  "count": 16,
+  "auto": 1
+ },
+ {
+  "id": "wasitiyya-muhammad-hisham-al-tahiri",
+  "book": "wasitiyya",
+  "title": "",
+  "scholar": "Shaykh Muḥammad Hishām al-Ṭāhirī",
+  "scholarAr": "الشيخ محمد هشام الطاهري",
+  "channel": "Ammaar E",
+  "playlist": "",
+  "count": 6,
+  "auto": 1
+ },
+ {
+  "id": "amrad-muhammad-hisham-al-tahiri",
+  "book": "amrad",
+  "title": "",
+  "scholar": "Shaykh Muḥammad Hishām al-Ṭāhirī",
+  "scholarAr": "الشيخ محمد هشام الطاهري",
+  "channel": "قناة د. محمد هشام الطاهري",
+  "playlist": "",
+  "count": 4,
+  "auto": 1
  }
 ]
