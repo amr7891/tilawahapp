@@ -242,3 +242,20 @@ main { padding-bottom: 200px; }
 .hz-c.shared { background-image: linear-gradient(135deg, transparent 0 48%, color-mix(in srgb, var(--ink) 38%, transparent) 48% 56%, transparent 56%); }
 .hz-juz { padding: 3px 0; }
 .hz-c.shared.mem, .hz-c.shared.weak, .hz-c.shared.learn { background-image: linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, .85) 46% 58%, transparent 58%); }
+
+/* ---- Less see-through ---- */
+/* Glass everywhere is thicker, and anything that opens over the Quran text or a book is close
+   to solid, so the words underneath never show through. */
+:root { --glass: rgba(255, 255, 255, .78); --surface: rgba(255, 255, 255, .78); --glass-strong: rgba(248, 251, 250, .9); --panel: rgba(250, 252, 251, .97); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --glass: rgba(34, 42, 40, .78); --surface: rgba(34, 42, 40, .78); --glass-strong: rgba(18, 23, 22, .9); --panel: rgba(20, 26, 25, .97); }
+}
+:root[data-theme="dark"] { --glass: rgba(34, 42, 40, .78); --surface: rgba(34, 42, 40, .78); --glass-strong: rgba(18, 23, 22, .9); --panel: rgba(20, 26, 25, .97); }
+
+.ayah-bar, .trans-card, .size-pop, .reader-bar, .pdf-hlbar, .area-hint, .zoom-hint, .arb-tools, .dock-row, .sheet-body, .toast, .heard {
+  background: var(--panel); -webkit-backdrop-filter: blur(30px) saturate(160%); backdrop-filter: blur(30px) saturate(160%);
+  border: 1px solid var(--glass-edge); box-shadow: var(--glass-hi), 0 14px 36px -16px rgba(0, 0, 0, .45);
+}
+.toast, .heard { color: var(--ink); }
+.toast.bad { background: var(--bad); color: #fff; }
+.sheet-body { border-bottom: 0; }
