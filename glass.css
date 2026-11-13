@@ -1,0 +1,192 @@
+/* Glass: iPhone-style frosted materials over a soft colour backdrop.
+   Loaded after styles.css; it only restyles, it never changes layout logic. */
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Figtree", system-ui, "Segoe UI", sans-serif;
+  --bg: #EDF2F0;
+  --ink: #101816;
+  --muted: #5E6B67;
+  --accent: #0E7A62;
+  --accent-ink: #FFFFFF;
+  --line: rgba(16, 40, 34, .09);
+  --surface: rgba(255, 255, 255, .58);
+  --surface-2: rgba(118, 132, 128, .14);
+  --glass: rgba(255, 255, 255, .58);
+  --glass-strong: rgba(250, 252, 251, .74);
+  --glass-edge: rgba(255, 255, 255, .78);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 0 0 .5px rgba(255, 255, 255, .35);
+  --glass-shadow: 0 12px 32px -16px rgba(8, 40, 30, .30), 0 2px 6px -3px rgba(8, 40, 30, .10);
+  --blur: blur(22px) saturate(180%);
+  --page-bg: transparent;
+  --radius: 18px;
+  --backdrop:
+    radial-gradient(70% 42% at 0% 0%, rgba(52, 190, 150, .34), transparent 70%),
+    radial-gradient(60% 38% at 100% 10%, rgba(92, 156, 255, .26), transparent 70%),
+    radial-gradient(75% 45% at 90% 100%, rgba(255, 190, 110, .28), transparent 70%),
+    radial-gradient(60% 40% at 0% 80%, rgba(160, 128, 255, .16), transparent 70%),
+    #EDF2F0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #05090A; --ink: #EEF3F1; --muted: #98A6A1; --accent: #3DD6AA; --accent-ink: #04140F;
+    --line: rgba(255, 255, 255, .10); --surface: rgba(44, 54, 51, .46); --surface-2: rgba(140, 160, 154, .16);
+    --glass: rgba(44, 54, 51, .46); --glass-strong: rgba(24, 30, 29, .70); --glass-edge: rgba(255, 255, 255, .13);
+    --glass-hi: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 0 0 .5px rgba(255, 255, 255, .06);
+    --glass-shadow: 0 14px 36px -16px rgba(0, 0, 0, .7);
+    --backdrop:
+      radial-gradient(70% 42% at 0% 0%, rgba(30, 160, 125, .30), transparent 70%),
+      radial-gradient(60% 38% at 100% 12%, rgba(60, 100, 230, .24), transparent 70%),
+      radial-gradient(75% 45% at 90% 100%, rgba(230, 150, 60, .14), transparent 70%),
+      radial-gradient(60% 40% at 0% 80%, rgba(130, 90, 230, .16), transparent 70%),
+      #05090A;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #05090A; --ink: #EEF3F1; --muted: #98A6A1; --accent: #3DD6AA; --accent-ink: #04140F;
+  --line: rgba(255, 255, 255, .10); --surface: rgba(44, 54, 51, .46); --surface-2: rgba(140, 160, 154, .16);
+  --glass: rgba(44, 54, 51, .46); --glass-strong: rgba(24, 30, 29, .70); --glass-edge: rgba(255, 255, 255, .13);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 0 0 .5px rgba(255, 255, 255, .06);
+  --glass-shadow: 0 14px 36px -16px rgba(0, 0, 0, .7);
+  --backdrop:
+    radial-gradient(70% 42% at 0% 0%, rgba(30, 160, 125, .30), transparent 70%),
+    radial-gradient(60% 38% at 100% 12%, rgba(60, 100, 230, .24), transparent 70%),
+    radial-gradient(75% 45% at 90% 100%, rgba(230, 150, 60, .14), transparent 70%),
+    radial-gradient(60% 40% at 0% 80%, rgba(130, 90, 230, .16), transparent 70%),
+    #05090A;
+}
+
+/* The backdrop the glass sits on. Inside .app so it also fills the phone frame on desktop. */
+body { background: var(--bg); letter-spacing: -0.005em; }
+.app { position: relative; isolation: isolate; }
+.app::before { content: ""; position: fixed; inset: 0; z-index: -1; background: var(--backdrop); pointer-events: none; }
+@media (min-width: 760px) and (min-height: 640px) and (display-mode: browser) {
+  body { background: var(--backdrop); }
+  .app { background: transparent; border-color: rgba(10, 16, 14, .92); }
+  .tabs { border-radius: 30px; }
+}
+
+/* ---- Materials ---- */
+.topbar, .tabs, .dock-row, .sheet-body, .sheet-head, .arb-bar, .lec-video, .arb-tools {
+  background: var(--glass-strong); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+}
+.hz-card, .hz-menu, .hz-done, .continue.alt, .search, .qa, .book, .tafsir, .hz-stats div, .qibla-facts div,
+.lec-link, .hbook, .juz, .pdf-need .pdf-hint {
+  background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-edge); box-shadow: var(--glass-hi), var(--glass-shadow);
+}
+/* Long lists: translucent without blur, so scrolling stays smooth. */
+.brow, .hzl-s, .hzl-j, .lec-row, .saved-row, .rec-list li, .lec-nrow, .hz-row {
+  background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--glass-hi);
+}
+.hz-done.muted { background: var(--surface-2); box-shadow: none; border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* Top bar: frosted, hairline only. */
+.topbar { border-bottom: .5px solid var(--line); }
+.topbar h1 { font-weight: 700; letter-spacing: -0.022em; }
+.icon-btn { border-radius: 50%; }
+.icon-btn:hover { background: var(--surface-2); }
+
+/* Floating capsule tab bar. */
+.tabs {
+  left: 12px; right: 12px; bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  max-width: 520px; margin: 0 auto; padding: 6px; gap: 2px; border-radius: 32px;
+  border: 1px solid var(--glass-edge); box-shadow: var(--glass-hi), 0 16px 40px -18px rgba(0, 0, 0, .4);
+}
+.tab { border-radius: 26px; padding: 6px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0; color: var(--ink); opacity: .72; transition: background-color .2s, opacity .2s; }
+.tab.active { opacity: 1; color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.dock { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+.arb-tools { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
+.heard { bottom: calc(166px + env(safe-area-inset-bottom, 0px)); }
+main { padding-bottom: 200px; }
+
+/* Player / recitation dock. */
+.dock-row { border: 1px solid var(--glass-edge); border-radius: 28px; box-shadow: var(--glass-hi), 0 16px 40px -18px rgba(0, 0, 0, .4); }
+.player .play, .reader-bottom .play { background: var(--surface-2); border-radius: 50%; }
+
+/* Tinted glass for primary actions. */
+.btn { height: 44px; border-radius: 99px; background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--glass-hi); }
+.btn.small { border-radius: 99px; }
+.btn.primary, .mic, .find-mic, .continue:not(.alt) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #fff) 0%, var(--accent) 55%);
+  color: var(--accent-ink); border: 1px solid color-mix(in srgb, var(--accent) 70%, #fff);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 8px 20px -10px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+.btn.primary:disabled { opacity: .45; box-shadow: none; }
+.mic.on { background: var(--bad); border-color: transparent; }
+.continue { border-radius: 22px; }
+.continue small { text-transform: none; letter-spacing: 0; font-size: 12px; opacity: .85; }
+
+/* Segmented controls: capsule track, raised glass thumb. */
+.mode-switch { border-radius: 99px; background: var(--surface-2); padding: 3px; }
+.mode { border-radius: 99px; padding: 7px 10px; font-size: 13px; }
+.mode.active { background: var(--glass-strong); box-shadow: var(--glass-hi), 0 3px 10px -4px rgba(0, 0, 0, .25); }
+
+/* Chips and pills. */
+.chip-btn, .hz-pill, .lec-follow, .lec-notes-btn { background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--glass-hi); }
+.chip-btn.on, .lib-filters .chip-btn.on, .hz-pill.on, .hzl-j.on, .brow .chip.on {
+  background: var(--accent); border-color: transparent; color: var(--accent-ink); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+.hz-rate .chip-btn.on.q3 { background: var(--accent); color: var(--accent-ink); }
+
+/* Fields: iOS-style filled inputs. */
+.field select, .hz-plan input, .hzl-range input, .page-jump input, .hjump input, .pdf-goto input, .manual-form input,
+#noteText, #lecNoteText {
+  background: var(--surface-2); border: 1px solid transparent; border-radius: 12px; color: var(--ink);
+}
+.field select:focus, .hz-plan input:focus, .hzl-range input:focus, #noteText:focus, #lecNoteText:focus { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 0; }
+.search { border-radius: 99px; height: 44px; }
+
+/* Sheets: a sheet of thick glass. */
+.sheet::backdrop { background: rgba(0, 0, 0, .22); }
+.sheet-body { border-radius: 30px 30px 0 0; border: 1px solid var(--glass-edge); border-bottom: 0; box-shadow: var(--glass-hi), 0 -10px 40px -20px rgba(0, 0, 0, .4); }
+.sheet-body { background: var(--glass-strong); }
+@media (min-width: 600px) { .sheet-body { border-radius: 30px; border-bottom: 1px solid var(--glass-edge); } }
+.sheet-head { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+.sheet-head h2 { font-size: 19px; letter-spacing: -0.015em; }
+
+/* Notifications: dark HUD glass, like iOS. */
+.toast { background: rgba(28, 30, 30, .72); color: #fff; -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border-radius: 99px; padding: 10px 18px; border: .5px solid rgba(255, 255, 255, .14); }
+.toast.bad { background: color-mix(in srgb, var(--bad) 88%, transparent); }
+.heard { background: rgba(28, 30, 30, .72); color: #fff; -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border-radius: 22px; }
+
+/* Section headings in sentence case, like iOS. */
+.lib-h, .lib-section h2, .sec-head h2, .sh-head h2, .bk-sub {
+  text-transform: none; letter-spacing: -0.015em; font-size: 20px; font-weight: 700; color: var(--ink);
+}
+.lib-h-note { font-size: 13px; color: var(--muted); }
+.goto-h, .hzl-h, .set-group, .ro-group, .hz-k, .h-ref, .qibla-facts dt, .mistakes .kind {
+  text-transform: none; letter-spacing: 0;
+}
+.goto-h, .hzl-h, .hz-k { font-size: 13px; font-weight: 600; }
+.set-group, .ro-group { font-size: 13px; }
+
+/* Hifz. */
+.hz-card, .hz-menu { border-radius: 24px; }
+.hz-done { border-radius: 20px; }
+.hz-bar { background: var(--surface-2); height: 6px; }
+.hz-bar i, .hz-c.mem, .lec-pg i { background: var(--accent); }
+.hz-c { background: var(--surface-2); border-radius: 4px; }
+.hzl-j { border-radius: 16px; }
+.hzl-s, .brow, .lec-row, .saved-row, .rec-list li { border-radius: 16px; }
+.hzl-foot { background: var(--glass-strong); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); }
+
+/* Book covers keep their colour but get a glass sheen. */
+.book-cover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35); }
+.qa { border-radius: 22px; }
+#findBtn .qa-ic { background: var(--accent); }
+
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass: var(--bg); --glass-strong: var(--bg); }
+  * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+}
+
+/* Dark mode: the large tinted card stays deep rather than neon. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .continue:not(.alt) {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 48%, #0B1512), color-mix(in srgb, var(--accent) 30%, #0B1512));
+    color: #EAFBF4; border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}
+:root[data-theme="dark"] .continue:not(.alt) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 48%, #0B1512), color-mix(in srgb, var(--accent) 30%, #0B1512));
+  color: #EAFBF4; border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
