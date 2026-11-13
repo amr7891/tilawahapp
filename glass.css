@@ -190,3 +190,45 @@ main { padding-bottom: 200px; }
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 48%, #0B1512), color-mix(in srgb, var(--accent) 30%, #0B1512));
   color: #EAFBF4; border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
+
+/* ---- Native structure ---- */
+/* Large titles on the five main screens, no subtitle. */
+.topbar.large { padding-top: calc(14px + env(safe-area-inset-top, 0px)); padding-bottom: 8px; background: transparent; border-bottom-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.topbar.large h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.1; }
+.topbar.large p { display: none; }
+.topbar.large .icon-btn { background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--glass-hi); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); }
+
+/* Grouped lists: one glass sheet per group, rows split by inset hairlines. */
+.blist, .surah-list, .hzl-list, .lec-list, .saved-list, .lec-nlist, .rec-list {
+  gap: 0 !important; padding: 0; overflow: hidden; border-radius: 22px;
+  background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--glass-hi), var(--glass-shadow);
+}
+.blist > li, .surah-list > li, .hzl-list > li, .lec-list > li, .saved-list > li, .lec-nlist > li, .rec-list > li { position: relative; }
+.blist > li + li::before, .surah-list > li + li::before, .hzl-list > li + li::before, .lec-list > li + li::before,
+.saved-list > li + li::before, .lec-nlist > li + li::before, .rec-list > li + li::before {
+  content: ""; position: absolute; top: 0; left: 62px; right: 0; border-top: .5px solid var(--line); pointer-events: none;
+}
+.hzl-list > li + li::before { left: 50px; }
+.brow, .hzl-s, .lec-row, .saved-row, .rec-list li, .lec-nrow, .surah-row {
+  background: transparent !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+}
+.brow, .lec-row { padding: 12px 14px; }
+.surah-row { padding: 11px 6px 11px 12px; }
+.surah-row:hover, .brow:hover, .lec-row:hover, .hzl-s:hover { background: var(--surface-2) !important; }
+.surah-list > li.empty { padding: 14px; }
+.brow-icon, .sr-icon { border-radius: 9px; }
+.lec-link { border-radius: 22px; }
+
+/* Quick actions: three compact glass pills. */
+.quick { gap: 8px; margin: 14px 0 6px; }
+.qa { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 0 10px; height: 46px; border-radius: 99px; }
+.qa-ic { width: auto; height: auto; margin: 0; background: none; color: var(--accent); }
+#findBtn .qa-ic { background: none; color: var(--accent); }
+.qa-ic svg { width: 19px; height: 19px; stroke-width: 2; }
+.qa b { font-size: 14px; font-weight: 600; }
+
+/* Section headings sit closer to their group, like iOS. */
+.lib-h { margin: 22px 4px 8px; }
+.lib-section h2, .sec-head h2, .sh-head h2 { margin-bottom: 8px; }
+.hz-mi small:empty { display: none; }
+.topbar.large.scrolled { background: var(--glass-strong); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border-bottom-color: var(--line); }

@@ -647,15 +647,15 @@ const hifz = {
       <h2 class="lib-h">Today</h2>
       <div class="hz-today">${newCard}${revCard}</div>
       <div class="hz-menu">
-        <button type="button" class="hz-mi" data-hz-log><span><b>Log what you know</b><small>Mark surahs, juz or pages in one go</small></span>${chev}</button>
-        <details class="hz-mi-d"${store.get('hzPlanOpen', false) ? ' open' : ''} data-key="hzPlanOpen"><summary class="hz-mi"><span><b>Plan</b><small>${pl.newPer === 0.5 ? 'Half a page' : pl.newPer === 1 ? '1 page' : '2 pages'} a day · ${this.JUZ_NAME[pl.reviewJuz].toLowerCase()} murajaʿah</small></span>${chev}</summary>
+        <button type="button" class="hz-mi" data-hz-log><span><b>Log what you know</b></span>${chev}</button>
+        <details class="hz-mi-d"${store.get('hzPlanOpen', false) ? ' open' : ''} data-key="hzPlanOpen"><summary class="hz-mi"><span><b>Plan</b><small>${pl.newPer === 0.5 ? 'Half a page' : pl.newPer === 1 ? '1 page' : '2 pages'} a day, ${this.JUZ_NAME[pl.reviewJuz].toLowerCase()} murajaʿah</small></span>${chev}</summary>
           <div class="hz-plan">
             <label class="field"><span>New a day</span><select id="hzNew">${opt([0.5, 1, 2], pl.newPer, v => v === 0.5 ? 'Half a page' : v === 1 ? '1 page' : '2 pages')}</select></label>
             <label class="field"><span>Murajaʿah a day</span><select id="hzRev">${opt([0.25, 0.5, 1, 2], pl.reviewJuz, v => this.JUZ_NAME[v])}</select></label>
             <label class="field"><span>Order</span><select id="hzDir"><option value="fwd"${pl.dir === 'fwd' ? ' selected' : ''}>Page 1 → 604</option><option value="back"${pl.dir === 'back' ? ' selected' : ''}>Juz ʿAmma first (30 → 1)</option></select></label>
             <label class="field"><span>Next new page</span><input id="hzStart" type="number" min="1" max="604" inputmode="numeric" value="${pl.start}"></label>
           </div></details>
-        <details class="hz-mi-d"${store.get('hzMapOpen', false) ? ' open' : ''} data-key="hzMapOpen"><summary class="hz-mi"><span><b>Page map</b><small>Every page at a glance · tap one to change it</small></span>${chev}</summary>
+        <details class="hz-mi-d"${store.get('hzMapOpen', false) ? ' open' : ''} data-key="hzMapOpen"><summary class="hz-mi"><span><b>Page map</b></span>${chev}</summary>
           <div class="hz-legend"><span><i class="hz-c mem"></i>Memorized</span><span><i class="hz-c weak"></i>Weak</span><span><i class="hz-c learn"></i>Learning</span><span><i class="hz-c"></i>Not yet</span></div>
           <div class="hz-map">${juzRows}</div></details>
       </div>`;
@@ -1208,13 +1208,13 @@ function showView(name) {
   const tab = ['surah', 'list', 'mushaf'].includes(name) ? 'quran' : name === 'pdf' ? 'library' : name;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   if (name !== 'mushaf' && name !== 'surah') resetWordEls();
-  if (name === 'list') { setTitle('Quran', 'Madinah Mushaf · 114 surahs'); renderContinue(); renderSavedHome(); install.card(); }
-  if (name === 'saved') { setTitle('Saved', 'Bookmarks, highlights and notes'); saved.render(); }
-  if (name === 'hifz') { setTitle('Hifz', 'Memorization and murajaʿah'); hifz.render(); }
-  if (name === 'qibla') { setTitle('Qibla', 'Direction of the Kaaba'); qibla.init(); }
+  if (name === 'list') { setTitle('Quran'); renderContinue(); renderSavedHome(); install.card(); }
+  if (name === 'saved') { setTitle('Saved'); saved.render(); }
+  if (name === 'hifz') { setTitle('Hifz'); hifz.render(); }
+  if (name === 'qibla') { setTitle('Qibla'); qibla.init(); }
   updateControls();
 }
-function setTitle(t, sub) { $('#viewTitle').textContent = t; $('#viewSub').textContent = sub || ''; document.title = t === 'Quran' ? APP_NAME : `${t} · ${APP_NAME}`; }
+function setTitle(t, sub) { $('#viewTitle').textContent = t; $('#viewSub').textContent = sub || ''; $('.topbar').classList.toggle('large', ['Quran', 'Saved', 'Hifz', 'Qibla', 'Library'].includes(t) && !sub); document.title = t === 'Quran' ? APP_NAME : `${t} · ${APP_NAME}`; }
 
 // In-app history, so Back returns to the screen you came from.
 const navStack = [];
@@ -1286,7 +1286,7 @@ function renderSurahList() {
   $('#surahList').innerHTML = rows.length ? rows.map(c => `
     <li class="surah-li"><button class="surah-row" data-n="${c.n}">
       <span class="star">${c.n}</span>
-      <span class="info"><b>${esc(c.en)}</b><span>${esc(c.tr)} · ${c.ayahs} ayahs</span></span>
+      <span class="info"><b>${esc(c.en)}</b><span>${esc(c.tr)}, ${c.ayahs} ayahs</span></span>
       ${glyphs ? `<span class="sname" aria-label="${esc(c.ar)}">${surahNameGlyph(c.n)}</span>` : `<span class="arabic" lang="ar">${esc(c.ar)}</span>`}
     </button>${offline.surahBtn(c.n, got)}</li>`).join('') : '<li class="empty">No surah matches that search.</li>';
 }
@@ -1296,12 +1296,12 @@ function renderContinue() {
   const p = store.get('mushafPage', null);
   const last = store.get('lastRead', null);
   let html = '';
-  if (!p && !last) html = `<a class="continue" href="#page-1"><span><small>Start reading</small><b>Al-Fatihah · Page 1</b></span><span class="cont-meta">Juz 1</span></a>`;
+  if (!p && !last) html = `<a class="continue" href="#page-1"><span><small>Start reading</small><b>Al-Fatihah, page 1</b></span><span class="cont-meta">Juz 1</span></a>`;
   const n = Q.meta ? savedItems().length : 0;
   const sc = $('#qaSavedSub'); if (sc) sc.textContent = n ? `${n} saved` : 'Bookmarks & notes';
   if (p) {
     const c = Q.surahsOnPage(p)[0];
-    html += `<a class="continue" href="#page-${p}"><span><small>Continue in the mushaf</small><b>Page ${p} · ${esc(c ? c.en : '')}</b></span><span class="cont-meta">Juz ${Q.juzOfPage(p)}</span></a>`;
+    html += `<a class="continue" href="#page-${p}"><span><small>Continue in the mushaf</small><b>${c ? esc(c.en) + ', page ' + p : 'Page ' + p}</b></span><span class="cont-meta">Juz ${Q.juzOfPage(p)}</span></a>`;
   }
   if (last && Q.meta.chapters[last.n - 1]) {
     const c = Q.ch(last.n);
@@ -1588,7 +1588,7 @@ async function openSurah(n, ayahNum) {
   try {
     await Q.load();
     const c = Q.ch(n);
-    setTitle(c.en, `${c.tr} · ${c.ayahs} ayahs`);
+    setTitle(c.en, `${c.tr}, ${c.ayahs} ayahs`);
     const data = await Q.surah(n);
     if (state.surahNum !== n) return;
     state.surahData = data;
@@ -1608,7 +1608,7 @@ const surahView = {
     const head = $('#surahHead');
     head.innerHTML = `<div class="surah-head">
         ${data.head ? `<div class="sh-frame big"><span class="sh" style="font-family:${Q.fam('B')}">${data.head.g}</span></div>` : ''}
-        <div class="meta">${esc(c.en)} · ${esc(c.tr)} · ${c.place === 'makkah' ? 'Makki' : 'Madani'} · ${c.ayahs} ayahs · page ${c.pages[0]}</div>
+        <div class="meta">${esc(c.tr)}, ${c.ayahs} ayahs, revealed in ${c.place === 'makkah' ? 'Makkah' : 'Madinah'}</div>
         ${data.bism ? `<div class="bismillah" style="font-family:${Q.fam(data.bism.fid)}">${data.bism.g}</div>` : ''}
       </div>`;
     if (data.bism) { const svg = Q.bismSVG(data.bism); if (svg) head.querySelector('.bismillah').replaceChildren(svg); }
@@ -2893,7 +2893,7 @@ async function openLibrary(slug, ch, num) {
   showView('library');
   $('#backBtn').hidden = !slug;
   const box = $('#library');
-  if (!slug) { setTitle('Library', 'Hadith and books'); await renderShelves(); return; }
+  if (!slug) { setTitle('Library'); await renderShelves(); return; }
   try { await H.load(); } catch (_) { box.innerHTML = '<p class="empty">The library could not load. Reload the page to try again.</p>'; return; }
   const b = H.book(slug);
   if (!b) { location.hash = 'library'; return; }
@@ -2930,7 +2930,7 @@ async function renderShelves() {
     const ls = await lectures.catalog();
     // Grouped by book, in the order of the library's Arabic books.
     const order = AR_BOOKS.map(a => a.slug).filter(sl => ls.some(s => s.book === sl));
-    body = `<p class="lib-note">Scholars explaining the books in Arabic. The book text follows along under the video, and you can take notes as you watch.</p>
+    body = `
       ${order.map(sl => { const b = AR_BOOKS.find(a => a.slug === sl) || { title: '' };
         return `<h2 class="lib-h lec-bh" lang="ar" dir="rtl">${esc(b.title)}</h2><ul class="blist">${ls.filter(s => s.book === sl).map(s => { const last = store.get('lecLast:' + s.id, 0);
           return `<li><a class="brow" href="#lec-${s.id}"><span class="brow-icon lec-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg></span>
@@ -2949,7 +2949,6 @@ async function renderShelves() {
     body = `<div class="search lib-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
         <input id="libSearch" type="search" placeholder="Search books (English or Arabic)" autocomplete="off"></div>
       <nav class="chips lib-filters" aria-label="Filter books">${groups.map(([id, t]) => `<button type="button" class="chip-btn${id === filt ? ' on' : ''}" data-filter="${id}">${esc(t)}</button>`).join('')}</nav>
-      <p class="lib-note lib-how">Books marked <span lang="ar" class="ar-chip-inline">ع</span> open in the original Arabic right here. For the English translation, download the PDF once and it opens here, offline.</p>
       ${SHELVES.map(sh => `<section class="lib-group" data-group="${sh.id}"><h2 class="lib-h">${esc(sh.title)}${sh.arabic ? ` <span class="shelf-ar" lang="ar">${sh.arabic}</span>` : ''}</h2>
         <ul class="blist">${sh.items.map(b => bookRow(b).replace('<li ', `<li data-ar="${b.ar ? 1 : 0}" `)).join('')}</ul></section>`).join('')}
       <p class="empty" id="libNone" hidden>No book matches that.</p>`;
@@ -4448,3 +4447,10 @@ route();
 if ('serviceWorker' in navigator && window.isSecureContext) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+// The large title bar is clear at the top of a screen and turns to glass once content scrolls under it.
+document.addEventListener('scroll', e => {
+  const t = e.target === document ? document.scrollingElement : e.target;
+  if (t !== document.scrollingElement && !(t.classList && t.classList.contains('screen'))) return;
+  const bar = document.querySelector('.topbar'); if (bar) bar.classList.toggle('scrolled', t.scrollTop > 4);
+}, { capture: true, passive: true });
