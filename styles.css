@@ -858,7 +858,7 @@ input, textarea, select { font-size: 16px; }
 .hz-juz { display: flex; align-items: center; gap: 8px; }
 .hz-jl { flex: none; width: 62px; border: 0; background: none; text-align: left; padding: 0; color: var(--ink); display: flex; flex-direction: column; cursor: pointer; }
 .hz-jl b { font-size: 12px; } .hz-jl span { font-size: 11px; color: var(--muted); }
-.hz-cells { flex: 1; display: grid; grid-template-columns: repeat(21, 1fr); gap: 2px; }
+.hz-cells { flex: 1; display: grid; grid-template-columns: repeat(23, 1fr); gap: 2px; }
 .hz-c { display: inline-block; aspect-ratio: 1; min-width: 0; width: 100%; border: 0; padding: 0; border-radius: 3px; background: var(--surface-2); cursor: pointer; }
 .hz-legend .hz-c { width: 12px; height: 12px; }
 .hz-c.mem { background: var(--accent); } .hz-c.weak { background: #D0533D; } .hz-c.learn { background: #C9962E; }

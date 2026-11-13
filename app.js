@@ -481,6 +481,9 @@ const hifz = {
     d.plan = Object.assign({ newPer: 1, reviewJuz: 0.5, dir: 'fwd', start: 1 }, d.plan || {});
     if (![0.5, 1, 2].includes(d.plan.newPer)) d.plan.newPer = 1;
     if (![0.25, 0.5, 1, 2].includes(d.plan.reviewJuz)) d.plan.reviewJuz = 0.5;
+    // "Juz ʿAmma first" used to step back page by page from 582 into juz 29: start again at the
+    // first page not yet logged, in the juz 30 → 1 order.
+    if (d.plan.dir === 'back' && !d.plan.o2 && Q.meta) { d.plan.start = this.order('back').find(p => !d.pages[p]) || 582; d.plan.o2 = 1; this.save(d); }
     return d;
   },
   save(d) { store.set('hifz', d); },
@@ -493,6 +496,7 @@ const hifz = {
     else {
       const was = d.pages[p];
       d.pages[p] = Object.assign({ t: Date.now(), r: [] }, was || {}, { s: st });
+      if (st === 'mem') { delete d.pages[p].h; delete d.pages[p].hOnly; }
       if (st === 'mem' && (!was || was.s !== 'mem')) { d.pages[p].m = Date.now(); const day = this.day(d); if (!day.n.includes(p)) day.n.push(p); }
     }
     if (st !== 'mem') { const day = d.days[this.today()]; if (day) day.n = day.n.filter(x => x !== p); }
@@ -544,10 +548,20 @@ const hifz = {
     day.r.forEach(p => { if (!review.includes(p)) review.push(p); });
     const fresh = day.n.slice();
     Object.keys(d.pages).filter(p => d.pages[p].s === 'learn').map(Number).forEach(p => { if (!fresh.includes(p)) fresh.push(p); });
-    const want = Math.ceil(d.plan.newPer);
-    let p = d.plan.start; const step = d.plan.dir === 'back' ? -1 : 1;
-    while (fresh.length < want && p >= 1 && p <= 604) { if (!d.pages[p] && !fresh.includes(p)) fresh.push(p); p += step; }
+    const want = Math.ceil(d.plan.newPer), seq = this.order(d.plan.dir);
+    for (let k = Math.max(0, seq.indexOf(d.plan.start)); fresh.length < want && k < seq.length; k++) { const p = seq[k]; if (!d.pages[p] && !fresh.includes(p)) fresh.push(p); }
     return { fresh, review, day, portion, custom };
+  },
+  // The order new pages come in: page 1 → 604, or Juz ʿAmma first (juz 30, then 29 … 1,
+  // each juz read from its first page).
+  order(dir) {
+    if (dir !== 'back') return Array.from({ length: 604 }, (_, i) => i + 1);
+    const a = []; for (let j = 30; j >= 1; j--) a.push(...this.juzPages(j)); return a;
+  },
+  // Memorized juz, counted juz by juz (juz 30 has 23 pages, most have 20).
+  juzDone(d) {
+    let t = 0; for (let j = 1; j <= 30; j++) { const ps = this.juzPages(j); t += this.memCount(ps, d) / ps.length; }
+    return Math.floor(t * 10 + 1e-9) / 10;
   },
   streak(d) {
     let n = 0; const t = new Date();
@@ -586,7 +600,9 @@ const hifz = {
     // New memorization: one card; folds to a single line once today's is done.
     let newCard;
     const todo = fresh.filter(p => !isMem(p)), doneNew = day.n.slice();
-    if (!todo.length && doneNew.length) newCard = `<div class="hz-done">${tick}<span><b>New</b> · ${this.pagesText(doneNew)} memorized</span><button type="button" class="hz-link" data-hz="undo-new">Undo</button></div>`;
+    const halfDone = pl.newPer === 0.5 && day.h && todo.length && d.pages[todo[0]] && d.pages[todo[0]].h;
+    if (halfDone) newCard = `<div class="hz-done">${tick}<span><b>New</b> · first half of page ${todo[0]} · second half tomorrow</span><button type="button" class="hz-link" data-hz="undo-half">Undo</button></div>`;
+    else if (!todo.length && doneNew.length) newCard = `<div class="hz-done">${tick}<span><b>New</b> · ${this.pagesText(doneNew)} memorized</span><button type="button" class="hz-link" data-hz="undo-new">Undo</button></div>`;
     else if (!todo.length) newCard = `<div class="hz-done muted"><span><b>New</b> · nothing left in this direction. Change where you start in Plan.</span></div>`;
     else {
       const half = pl.newPer === 0.5 ? (d.pages[todo[0]] && d.pages[todo[0]].h ? 'second half' : 'first half') : '';
@@ -625,7 +641,7 @@ const hifz = {
     const chev = '<svg class="hz-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>';
     box.innerHTML = `
       <div class="hz-top">
-        <div class="hz-num"><b>${mem.length}</b><span>of 604 pages${mem.length ? ` · ${(mem.length / 20.13).toFixed(1)} juz` : ''}${streak > 1 ? ` · ${streak}-day streak` : ''}</span></div>
+        <div class="hz-num"><b>${mem.length}</b><span>of 604 pages${mem.length ? ` · ${this.juzDone(d)} juz` : ''}${streak > 1 ? ` · ${streak}-day streak` : ''}</span></div>
         <div class="hz-bar" aria-label="${pct}% of the Quran"><i style="width:${pct}%"></i></div>
       </div>
       <h2 class="lib-h">Today</h2>
@@ -636,7 +652,7 @@ const hifz = {
           <div class="hz-plan">
             <label class="field"><span>New a day</span><select id="hzNew">${opt([0.5, 1, 2], pl.newPer, v => v === 0.5 ? 'Half a page' : v === 1 ? '1 page' : '2 pages')}</select></label>
             <label class="field"><span>Murajaʿah a day</span><select id="hzRev">${opt([0.25, 0.5, 1, 2], pl.reviewJuz, v => this.JUZ_NAME[v])}</select></label>
-            <label class="field"><span>Order</span><select id="hzDir"><option value="fwd"${pl.dir === 'fwd' ? ' selected' : ''}>Page 1 → 604</option><option value="back"${pl.dir === 'back' ? ' selected' : ''}>Juz ʿAmma first</option></select></label>
+            <label class="field"><span>Order</span><select id="hzDir"><option value="fwd"${pl.dir === 'fwd' ? ' selected' : ''}>Page 1 → 604</option><option value="back"${pl.dir === 'back' ? ' selected' : ''}>Juz ʿAmma first (30 → 1)</option></select></label>
             <label class="field"><span>Next new page</span><input id="hzStart" type="number" min="1" max="604" inputmode="numeric" value="${pl.start}"></label>
           </div></details>
         <details class="hz-mi-d"${store.get('hzMapOpen', false) ? ' open' : ''} data-key="hzMapOpen"><summary class="hz-mi"><span><b>Page map</b><small>Every page at a glance · tap one to change it</small></span>${chev}</summary>
@@ -765,7 +781,7 @@ const hifz = {
   },
   applyLog(mark) {
     const pages = this.selPages(); if (!pages.length) return;
-    const d = this.data(), now = Date.now(); let n = 0;
+    const before = localStorage.getItem('tl:hifz'), d = this.data(), now = Date.now(); let n = 0;
     pages.forEach(p => {
       const pg = d.pages[p];
       if (mark) { if (!pg || pg.s !== 'mem') { d.pages[p] = Object.assign({ r: [] }, pg || {}, { s: 'mem', t: now, m: now - 7 * 864e5 }); delete d.pages[p].h; n++; } }
@@ -774,8 +790,8 @@ const hifz = {
     if (!mark) Object.values(d.days).forEach(day => { day.n = day.n.filter(p => d.pages[p]); day.r = day.r.filter(p => d.pages[p]); });
     this.save(d);
     $('#hzLogSheet').close();
-    toast(mark ? `${n} page${n === 1 ? '' : 's'} logged as memorized. They join your murajaʿah.` : `${n} page${n === 1 ? '' : 's'} removed from your hifz.`);
     this.render();
+    this.undoable(mark ? `${n} page${n === 1 ? '' : 's'} logged as memorized.` : `${n} page${n === 1 ? '' : 's'} removed from your hifz.`, before);
   },
   initLog() {
     const sh = $('#hzLogSheet');
@@ -803,10 +819,19 @@ const hifz = {
     location.hash = 'page-' + p;
     try { const d = await Q.pageReady(p); const w = d.words[0]; setTimeout(() => rec.start(w.s, w.a, { scope: 'open', pos: w.pos, lastPage: last, hifz: save ? pages : null }), 700); } catch (_) {}
   },
+  // A toast with Undo for changes that can wipe records with one tap.
+  undoable(msg, before) {
+    toast(msg);
+    const el = $('#toast'), b = document.createElement('button');
+    b.type = 'button'; b.className = 'toast-undo'; b.textContent = 'Undo';
+    b.addEventListener('click', () => { if (before == null) localStorage.removeItem('tl:hifz'); else localStorage.setItem('tl:hifz', before); el.hidden = true; this.render(); });
+    el.append(b);
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 5000);
+  },
   markNew(p) {
     this.set(p, 'mem');
     const d = this.data();
-    if (d.plan.start === p) { d.plan.start = Math.max(1, Math.min(604, p + (d.plan.dir === 'back' ? -1 : 1))); this.save(d); }
+    if (d.plan.start === p) { const seq = this.order(d.plan.dir), k = seq.indexOf(p); d.plan.start = seq[Math.min(seq.length - 1, k + 1)]; this.save(d); }
   },
   init() {
     this.initLog(); this.initPick();
@@ -815,17 +840,17 @@ const hifz = {
       if (e.target.closest('[data-hz-log]')) { this.openLog(); return; }
       const cell = e.target.closest('[data-cell]');
       if (cell) {   // not yet → learning → memorized → not yet
-        const p = +cell.dataset.cell, d = this.data(), cur = d.pages[p] && d.pages[p].s;
+        const before = localStorage.getItem('tl:hifz'), p = +cell.dataset.cell, d = this.data(), cur = d.pages[p] && d.pages[p].s;
         this.set(p, !cur ? 'learn' : cur === 'learn' ? 'mem' : null);
-        toast(`Page ${p}: ${!cur ? 'learning' : cur === 'learn' ? 'memorized' : 'cleared'}`);
-        this.render(); return;
+        this.render(); this.undoable(`Page ${p}: ${!cur ? 'learning' : cur === 'learn' ? 'memorized' : 'cleared'}`, before); return;
       }
       const jz = e.target.closest('[data-juz]');
       if (jz) {
-        const j = +jz.dataset.juz, d = this.data(), pages = this.juzPages(j);
+        const before = localStorage.getItem('tl:hifz'), j = +jz.dataset.juz, d = this.data(), pages = this.juzPages(j);
         const all = pages.every(p => d.pages[p] && d.pages[p].s === 'mem');
         pages.forEach(p => { if (all) delete d.pages[p]; else if (!d.pages[p] || d.pages[p].s !== 'mem') d.pages[p] = { s: 'mem', t: Date.now(), m: Date.now() - 7 * 864e5, r: [] }; });
-        this.save(d); toast(all ? `Juz ${j} cleared` : `Juz ${j} marked memorized`); this.render(); return;
+        if (all) Object.values(d.days).forEach(day => { day.n = day.n.filter(p => d.pages[p]); day.r = day.r.filter(p => d.pages[p]); });
+        this.save(d); this.render(); this.undoable(all ? `Juz ${j} cleared` : `Juz ${j} marked memorized`, before); return;
       }
       const b = e.target.closest('[data-hz]'); if (!b) return;
       const act = b.dataset.hz, d = this.data(), { fresh, review, day } = this.plan(d);
@@ -840,15 +865,20 @@ const hifz = {
         // Half a page a day: the first tap is the first half; the page is memorized with the second.
         if (d.plan.newPer === 0.5 && !(d.pages[todo[0]] && d.pages[todo[0]].h)) {
           const p = todo[0];
-          d.pages[p] = Object.assign({ t: Date.now(), r: [] }, d.pages[p] || {}, { s: 'learn', h: 1 });
+          d.pages[p] = Object.assign({ t: Date.now(), r: [] }, d.pages[p] || { hOnly: 1 }, { s: 'learn', h: 1 });
           this.day(d).h = 1; this.save(d);
-          toast(`First half of page ${p} done. The second half is next.`); this.render(); return;
+          toast(`First half of page ${p} done. The second half is tomorrow's.`); this.render(); return;
         }
         const ps = d.plan.newPer === 0.5 ? [todo[0]] : todo;
         ps.forEach(p => this.markNew(p));
         toast(`${this.pagesText(ps)} memorized. ${ps.length === 1 ? 'It joins' : 'They join'} your murajaʿah.`); this.render(); return;
       }
-      if (act === 'undo-new') { day.n.slice().forEach(p => this.set(p, 'learn')); this.render(); return; }
+      if (act === 'undo-half') { const p = todo[0]; if (p && d.pages[p]) { delete d.pages[p].h; if (d.pages[p].s === 'learn' && !(d.pages[p].r || []).length && d.pages[p].hOnly) delete d.pages[p]; } delete this.day(d).h; this.save(d); this.render(); return; }
+      if (act === 'undo-new') {
+        day.n.slice().forEach(p => this.set(p, 'learn'));
+        if (d.plan.newPer === 0.5) { const d2 = this.data(); day.n.forEach(p => { if (d2.pages[p]) d2.pages[p].h = 1; }); this.day(d2).h = 1; this.save(d2); }
+        this.render(); return;
+      }
       if (act === 'undo-rev') {
         const d2 = this.data(), dy = this.day(d2), t0 = new Date(); t0.setHours(0, 0, 0, 0);
         dy.r.forEach(p => { const pg = d2.pages[p]; if (pg && pg.r) pg.r = pg.r.filter(x => x[0] < t0.getTime()); });
@@ -863,7 +893,7 @@ const hifz = {
       const d = this.data(), t = e.target;
       if (t.id === 'hzNew') d.plan.newPer = +t.value;
       else if (t.id === 'hzRev') d.plan.reviewJuz = +t.value;
-      else if (t.id === 'hzDir') { d.plan.dir = t.value; d.plan.start = t.value === 'back' ? 582 : 1; }
+      else if (t.id === 'hzDir') { d.plan.dir = t.value; d.plan.o2 = 1; d.plan.start = this.order(t.value).find(p => !d.pages[p]) || (t.value === 'back' ? 582 : 1); }
       else if (t.id === 'hzStart') d.plan.start = Math.max(1, Math.min(604, +t.value || 1));
       else return;
       this.save(d); this.render();
@@ -2324,7 +2354,9 @@ function showSummaryFor(res) {
   let hifzNote = '';
   if (rec.hifz && attempted.length) {
     const q = wrong + skip === 0 ? (taj <= 2 ? 3 : 2) : wrong + skip <= 3 ? 2 : 1;
-    const ps = [].concat(rec.hifz); ps.forEach(p => hifz.review(p, q));
+    // Only the pages you got to: stopping early doesn't count the rest as revised.
+    const lw = attempted[attempted.length - 1], reached = Q.ayahPage(lw.s, lw.a);
+    const ps = [].concat(rec.hifz).filter((p, i) => i === 0 || p <= reached); ps.forEach(p => hifz.review(p, q));
     if (state.view === 'hifz') hifz.render();
     hifzNote = `<p class="hifz-logged">Saved to Hifz: ${hifz.pagesText(ps).toLowerCase()} · ${hifz.QNAME[q]}</p>`;
   }
