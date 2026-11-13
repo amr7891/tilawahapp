@@ -185,10 +185,10 @@ SHELVES.forEach(sh => sh.items.forEach(b => {
   if (hit) b.publisher = hit[1];
 }));
 
-// Where each juz begins (surah, ayah).
+// Where each juz begins (surah, ayah), as in the King Fahd Complex's Madinah mushaf data.
 const JUZ_STARTS = [
-  [1, 1], [2, 142], [2, 253], [3, 93], [4, 24], [4, 148], [5, 82], [6, 111], [7, 88], [8, 41],
-  [9, 93], [11, 6], [12, 53], [15, 1], [17, 1], [18, 75], [21, 1], [23, 1], [25, 21], [27, 56],
+  [1, 1], [2, 142], [2, 253], [3, 92], [4, 24], [4, 148], [5, 82], [6, 111], [7, 88], [8, 41],
+  [9, 94], [11, 6], [12, 53], [15, 1], [17, 1], [18, 75], [21, 1], [23, 1], [25, 21], [27, 56],
   [29, 46], [33, 31], [36, 28], [39, 32], [41, 47], [46, 1], [51, 31], [58, 1], [67, 1], [78, 1],
 ];
 
@@ -555,7 +555,7 @@ const hifz = {
   // each juz read from its first page).
   order(dir) {
     if (dir !== 'back') return Array.from({ length: 604 }, (_, i) => i + 1);
-    const a = []; for (let j = 30; j >= 1; j--) a.push(...this.juzPages(j)); return a;
+    const a = []; for (let j = 30; j >= 1; j--) a.push(...this.juzPages(j)); return [...new Set(a)];
   },
   // Memorized juz, counted juz by juz (juz 30 has 23 pages, most have 20).
   juzDone(d) {
@@ -572,10 +572,22 @@ const hifz = {
     return n;
   },
   pageLabel(p) { const cs = Q.surahsOnPage(p); return `${cs.map(c => c.en).join(', ')} · Juz ${this.juzOf(p)}`; },
-  // Hifz counts juz the way the Madinah mushaf is laid out for memorizing: 20 pages each
-  // (juz 1 is pages 1–21, juz 30 is 582–604). Where a juz begins partway down a page
-  // (juz 4, 7, 11 and 26), that page stays with one juz instead of making it 19 or 21.
-  juzOf(p) { return p <= 21 ? 1 : p >= 582 ? 30 : Math.floor((p - 2) / 20) + 1; },
+  // A page's juz is the juz of its first ayah. Two pages hold the end of one juz and the
+  // start of the next (121: juz 6 and 7; 502: juz 25 and 26); they are in both juz below.
+  juzOf(p) { for (let j = 30; j >= 1; j--) if (this.juzSpan(j)[0] < p || (this.juzSpan(j)[0] === p && this.juzStartsTop(j))) return j; return 1; },
+  // First and last page of a juz, from where it begins and where the next one begins.
+  juzSpan(j) {
+    const [s, a] = JUZ_STARTS[j - 1], first = Q.ayahPage(s, a);
+    if (j === 30) return [first, 604];
+    const [ns, na] = JUZ_STARTS[j], np = Q.ayahPage(ns, na);
+    return [first, this.juzStartsTop(j + 1) ? np - 1 : np];
+  },
+  // Does this juz begin at the top of its page (its first ayah is the page's first)?
+  juzStartsTop(j) {
+    const [s, a] = JUZ_STARTS[j - 1]; if (s === 1 && a === 1) return true;
+    const ps = a > 1 ? s : s - 1, pa = a > 1 ? a - 1 : Q.ch(s - 1).ayahs;
+    return Q.ayahPage(ps, pa) !== Q.ayahPage(s, a);
+  },
   ago(ts) { if (!ts) return 'not revised yet'; const dd = Math.floor((Date.now() - ts) / 864e5); return dd === 0 ? 'revised today' : dd === 1 ? 'revised yesterday' : `revised ${dd} days ago`; },
   // "1–11, 14" from a list of pages.
   ranges(ps) {
@@ -667,7 +679,7 @@ const hifz = {
   // gathered into one selection and marked (or removed) with one tap.
   juzPages(j) {
     this._jp = this._jp || {};
-    if (!this._jp[j]) { const a = []; for (let p = 1; p <= 604; p++) if (this.juzOf(p) === j) a.push(p); this._jp[j] = a; }
+    if (!this._jp[j]) { const [f, l] = this.juzSpan(j), a = []; for (let p = f; p <= l; p++) a.push(p); this._jp[j] = a; }
     return this._jp[j];
   },
   surahPages(n) { const c = Q.ch(n), a = []; for (let p = c.pages[0]; p <= c.pages[1]; p++) a.push(p); return a; },
