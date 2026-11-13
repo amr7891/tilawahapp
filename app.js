@@ -647,9 +647,11 @@ const hifz = {
     }
 
     const juzRows = Array.from({ length: 30 }, (_, j) => {
-      const pages = this.juzPages(j + 1), n = pages.filter(isMem).length;
-      return `<div class="hz-juz"><button type="button" class="hz-jl" data-juz="${j + 1}"><b>Juz ${j + 1}</b><span>${n}/${pages.length}</span></button>
-        <div class="hz-cells">${pages.map(p => { const pg = d.pages[p], l = this.last(pg); const cls = !pg ? '' : pg.s === 'learn' ? 'learn' : l && l[1] === 1 ? 'weak' : 'mem'; return `<button type="button" class="hz-c ${cls}" data-cell="${p}" aria-label="Page ${p}${cls ? ', ' + cls : ''}"></button>`; }).join('')}</div></div>`;
+      const pages = this.juzPages(j + 1), n = pages.filter(isMem).length, first = pages[0], last = pages[pages.length - 1];
+      // A page shared with the juz before or after it (121 and 502 in the Madinah mushaf).
+      const other = p => p === first && j > 0 && this.juzPages(j).includes(p) ? j : p === last && j < 29 && this.juzPages(j + 2).includes(p) ? j + 2 : 0;
+      return `<div class="hz-juz"><button type="button" class="hz-jl" data-juz="${j + 1}"><span class="hz-jt"><b>Juz ${j + 1}</b><em>${n ? `${n}/${pages.length}` : ''}</em></span><span>${first}–${last}</span></button>
+        <div class="hz-cells">${pages.map(p => { const pg = d.pages[p], l = this.last(pg), o = other(p); const cls = !pg ? '' : pg.s === 'learn' ? 'learn' : l && l[1] === 1 ? 'weak' : 'mem'; return `<button type="button" class="hz-c ${cls}${o ? ' shared' : ''}" data-cell="${p}" title="Page ${p}${o ? `, shared with juz ${o}` : ''}" aria-label="Page ${p}${o ? `, shared with juz ${o}` : ''}${cls ? ', ' + cls : ''}"></button>`; }).join('')}</div></div>`;
     }).join('');
     const opt = (vals, cur, fmt) => vals.map(v => `<option value="${v}"${+cur === v ? ' selected' : ''}>${fmt(v)}</option>`).join('');
     const pct = (mem.length / 604 * 100).toFixed(1);
@@ -671,7 +673,7 @@ const hifz = {
             <label class="field"><span>Next new page</span><input id="hzStart" type="number" min="1" max="604" inputmode="numeric" value="${pl.start}"></label>
           </div></details>
         <details class="hz-mi-d"${store.get('hzMapOpen', false) ? ' open' : ''} data-key="hzMapOpen"><summary class="hz-mi"><span><b>Page map</b></span>${chev}</summary>
-          <div class="hz-legend"><span><i class="hz-c mem"></i>Memorized</span><span><i class="hz-c weak"></i>Weak</span><span><i class="hz-c learn"></i>Learning</span><span><i class="hz-c"></i>Not yet</span></div>
+          <div class="hz-legend"><span><i class="hz-c mem"></i>Memorized</span><span><i class="hz-c weak"></i>Weak</span><span><i class="hz-c learn"></i>Learning</span><span><i class="hz-c"></i>Not yet</span><span><i class="hz-c shared"></i>Page shared by two juz</span></div>
           <div class="hz-map">${juzRows}</div></details>
       </div>`;
   },

@@ -232,3 +232,13 @@ main { padding-bottom: 200px; }
 .lib-section h2, .sec-head h2, .sh-head h2 { margin-bottom: 8px; }
 .hz-mi small:empty { display: none; }
 .topbar.large.scrolled { background: var(--glass-strong); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border-bottom-color: var(--line); }
+
+/* Page map: each juz row names its pages; a page shared by two juz is cut on the diagonal. */
+.hz-jl { width: 82px; gap: 1px; }
+.hz-jt { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; }
+.hz-jt b { font-size: 12.5px; }
+.hz-jt em { font-style: normal; font-size: 10.5px; font-weight: 600; color: var(--accent); }
+.hz-jl > span:last-child { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hz-c.shared { background-image: linear-gradient(135deg, transparent 0 48%, color-mix(in srgb, var(--ink) 38%, transparent) 48% 56%, transparent 56%); }
+.hz-juz { padding: 3px 0; }
+.hz-c.shared.mem, .hz-c.shared.weak, .hz-c.shared.learn { background-image: linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, .85) 46% 58%, transparent 58%); }
