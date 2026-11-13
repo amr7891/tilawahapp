@@ -517,8 +517,7 @@ const hifz = {
   },
   // The mushaf in review portions of the chosen size: quarter, half, one or two juz.
   portions(size) {
-    const juz = Array.from({ length: 30 }, () => []);
-    for (let p = 1; p <= 604; p++) juz[Q.juzOfPage(p) - 1].push(p);
+    const juz = Array.from({ length: 30 }, (_, j) => this.juzPages(j + 1).slice());
     const out = [];
     if (size >= 1) { for (let j = 0; j < 30; j += size) out.push([].concat(...juz.slice(j, j + size))); return out; }
     const parts = Math.round(1 / size);
@@ -572,7 +571,11 @@ const hifz = {
     }
     return n;
   },
-  pageLabel(p) { const cs = Q.surahsOnPage(p); return `${cs.map(c => c.en).join(', ')} · Juz ${Q.juzOfPage(p)}`; },
+  pageLabel(p) { const cs = Q.surahsOnPage(p); return `${cs.map(c => c.en).join(', ')} · Juz ${this.juzOf(p)}`; },
+  // Hifz counts juz the way the Madinah mushaf is laid out for memorizing: 20 pages each
+  // (juz 1 is pages 1–21, juz 30 is 582–604). Where a juz begins partway down a page
+  // (juz 4, 7, 11 and 26), that page stays with one juz instead of making it 19 or 21.
+  juzOf(p) { return p <= 21 ? 1 : p >= 582 ? 30 : Math.floor((p - 2) / 20) + 1; },
   ago(ts) { if (!ts) return 'not revised yet'; const dd = Math.floor((Date.now() - ts) / 864e5); return dd === 0 ? 'revised today' : dd === 1 ? 'revised yesterday' : `revised ${dd} days ago`; },
   // "1–11, 14" from a list of pages.
   ranges(ps) {
@@ -664,7 +667,7 @@ const hifz = {
   // gathered into one selection and marked (or removed) with one tap.
   juzPages(j) {
     this._jp = this._jp || {};
-    if (!this._jp[j]) { const a = []; for (let p = 1; p <= 604; p++) if (Q.juzOfPage(p) === j) a.push(p); this._jp[j] = a; }
+    if (!this._jp[j]) { const a = []; for (let p = 1; p <= 604; p++) if (this.juzOf(p) === j) a.push(p); this._jp[j] = a; }
     return this._jp[j];
   },
   surahPages(n) { const c = Q.ch(n), a = []; for (let p = c.pages[0]; p <= c.pages[1]; p++) a.push(p); return a; },
